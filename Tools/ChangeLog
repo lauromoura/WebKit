@@ -1,3 +1,17 @@
+2022-01-04  Lauro Moura  <lmoura@igalia.com>
+
+        [GLIB] Make API test initialize localstorage to ensure the database file is created
+        Need the bug URL (OOPS!).
+
+        Reviewed by NOBODY (OOPS!).
+
+        Changes needed after 245553@main/r287418 changed the localstorate
+        behavior to avoid creating an empty database file when reading empty
+        databases.
+
+        * TestWebKitAPI/Tests/WebKitGLib/TestWebsiteData.cpp:
+        (testWebsiteDataConfiguration):
+
 2022-01-02  Wenson Hsieh  <wenson_hsieh@apple.com>
 
         [WebKit2] Camera continuity is disabled in richly editable content
