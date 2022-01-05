@@ -39,6 +39,8 @@ from webkitpy.common.system.logutils import configure_logging
 from webkitcorepy import string_utils
 import toml
 import json
+import jeepney
+import jeepney.io.blocking
 
 try:
     from urllib.parse import urlparse  # pylint: disable=E0611
@@ -186,6 +188,36 @@ def check_flatpak(verbose=True):
         return ()
 
     return current_version
+
+
+def get_a11y_socket():
+    """Some versions of AT-SPI2 may create the a11y socket as an unix:path on /tmp
+    instead of using an abstract socket or creating inside XDG_HOME_DIR.
+
+    This may cause the call to org.a11y.Bus.GetAddress (e.g. when initializing GTK)
+    to return a socket that usually wouldn't be visible inside the sandbox."""
+
+    try:
+
+        a11y_bus = jeepney.DBusAddress('/org/a11y/bus',
+                bus_name='org.a11y.Bus',
+                interface='org.a11y.Bus')
+        connection = jeepney.io.blocking.open_dbus_connection(bus='SESSION')
+
+        msg = jeepney.new_method_call(a11y_bus, 'GetAddress')
+
+        reply = connection.send_and_get_reply(msg)
+        full_path = reply.body[0]
+
+        if full_path.startswith('unix:path'):
+            path = full_path.replace('unix:path=', '').split(',')[0]
+            print(path)
+            if os.path.exists(path):
+                return path
+    except Exception as e:
+        Console.error_message("Failed to get a11y socket address: {}".format(e))
+
+    return None
 
 
 class FlatpakObject:
@@ -978,6 +1010,10 @@ class WebkitFlatpak:
             "WEBKIT_BUILD_DIR_BIND_MOUNT": "%s:%s" % (sandbox_build_path, self.build_path),
             "WEBKIT_FLATPAK_USER_DIR": os.environ["FLATPAK_USER_DIR"],
         })
+
+        a11y_path = get_a11y_socket()
+        if a11y_path:
+            flatpak_env['WEBKIT_A11Y_SOCKET'] = a11y_path
 
         display = os.environ.get("DISPLAY")
         if display:

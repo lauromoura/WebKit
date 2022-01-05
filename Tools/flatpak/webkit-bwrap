@@ -42,8 +42,6 @@ def read_lines(fd: int):
     finally:
         os.lseek(fd, pos, os.SEEK_SET)
 
-
-
 def main(args: list) -> int:
     tmpdir = tempfile.gettempdir()
     source_root = os.path.normpath(os.path.abspath(os.path.join(scriptdir, '../../')))
@@ -92,6 +90,11 @@ def main(args: list) -> int:
     if xdg_runtime_dir:
         pw_socket = os.path.join(xdg_runtime_dir, "pipewire-0")
         try_bind_mounts[pw_socket] = pw_socket
+
+    a11y_socket_path = environ.get("WEBKIT_A11Y_SOCKET")
+    if a11y_socket_path:
+        print('Trying to mount', a11y_socket_path)
+        try_bind_mounts[a11y_socket_path] = a11y_socket_path
 
     bwrap_args = ["bwrap", ]
     for dst, src in bind_mounts.items():
