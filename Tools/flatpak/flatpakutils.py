@@ -16,6 +16,7 @@
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
 # Boston, MA 02110-1301, USA.
 import argparse
+import atexit
 import logging
 try:
     import configparser
@@ -757,7 +758,9 @@ class WebkitFlatpak:
         self.a11y_socket = tempfile.NamedTemporaryFile(dir=self.socket_dir.name, delete=False)
 
         try:
-            subprocess.Popen((dbus_proxy_path, a11y_bus_address, self.a11y_socket.name))
+            proxy_proc = subprocess.Popen((dbus_proxy_path, a11y_bus_address, self.a11y_socket.name))
+
+            atexit.register(lambda: proxy_proc.terminate())
         except (subprocess.CalledProcessError) as e:
             Console.message("Failed to get run xdg-dbus-proxy {}".format(e))
             return []
