@@ -1,3 +1,22 @@
+2022-05-06  Lauro Moura  <lmoura@igalia.com>
+
+        [GLIB] Add Speech synthesis stubs
+        Need the bug URL (OOPS!).
+
+        Reviewed by NOBODY (OOPS!).
+
+        * Modules/speech/SpeechSynthesisErrorEventInit.h: Add missing include.
+        * platform/SourcesGLib.txt: Add new file.
+        * platform/glib/PlatformSpeechSynthesizerGlib.cpp: Added.
+        (WebCore::PlatformSpeechSynthesizer::PlatformSpeechSynthesizer):
+        (WebCore::PlatformSpeechSynthesizer::~PlatformSpeechSynthesizer):
+        (WebCore::PlatformSpeechSynthesizer::initializeVoiceList):
+        (WebCore::PlatformSpeechSynthesizer::speak):
+        (WebCore::PlatformSpeechSynthesizer::pause):
+        (WebCore::PlatformSpeechSynthesizer::resume):
+        (WebCore::PlatformSpeechSynthesizer::cancel):
+        (WebCore::PlatformSpeechSynthesizer::resetState):
+
 2022-05-06  Youenn Fablet  <youenn@apple.com>
 
         Allow MediaPlayerPrivateMediaStreamAVFObjC to avoid pixel conformers if IOSurfaces are not allowed
