@@ -33,6 +33,7 @@
 #include "SpeechSynthesisErrorCode.h"
 #include "SpeechSynthesisUtterance.h"
 #include "SpeechSynthesisVoice.h"
+#include <optional>
 #include <wtf/Deque.h>
 #include <wtf/RefCounted.h>
 
@@ -97,7 +98,7 @@ private:
     void voicesChanged() override;
     
     void startSpeakingImmediately(SpeechSynthesisUtterance&);
-    void handleSpeakingCompleted(SpeechSynthesisUtterance&, bool errorOccurred);
+    void handleSpeakingCompleted(SpeechSynthesisUtterance&, bool errorOccurred, std::optional<SpeechSynthesisErrorCode> errorCode=std::nullopt);
 
     ScriptExecutionContext* scriptExecutionContext() const final { return ContextDestructionObserver::scriptExecutionContext(); }
     EventTargetInterface eventTargetInterface() const final { return SpeechSynthesisEventTargetInterfaceType; }

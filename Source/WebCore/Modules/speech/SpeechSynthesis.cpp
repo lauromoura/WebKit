@@ -197,7 +197,7 @@ void SpeechSynthesis::resume()
     }
 }
 
-void SpeechSynthesis::handleSpeakingCompleted(SpeechSynthesisUtterance& utterance, bool errorOccurred)
+void SpeechSynthesis::handleSpeakingCompleted(SpeechSynthesisUtterance& utterance, bool errorOccurred, std::optional<SpeechSynthesisErrorCode> errorCode)
 {
     ASSERT(m_currentSpeechUtterance);
     Ref<SpeechSynthesisUtterance> protect(utterance);
@@ -205,7 +205,7 @@ void SpeechSynthesis::handleSpeakingCompleted(SpeechSynthesisUtterance& utteranc
     m_currentSpeechUtterance = nullptr;
 
     if (errorOccurred)
-        utterance.errorEventOccurred(eventNames().errorEvent, SpeechSynthesisErrorCode::Canceled);
+        utterance.errorEventOccurred(eventNames().errorEvent, errorCode.value_or(SpeechSynthesisErrorCode::Canceled));
     else
         utterance.eventOccurred(eventNames().endEvent, 0, 0, String());
     
