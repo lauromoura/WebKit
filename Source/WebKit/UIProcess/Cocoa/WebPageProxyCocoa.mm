@@ -459,47 +459,6 @@ void WebPageProxy::paymentCoordinatorRemoveMessageReceiver(WebPaymentCoordinator
 
 #endif
 
-#if ENABLE(SPEECH_SYNTHESIS)
-void WebPageProxy::didStartSpeaking(WebCore::PlatformSpeechSynthesisUtterance&)
-{
-    if (speechSynthesisData().speakingStartedCompletionHandler)
-        speechSynthesisData().speakingStartedCompletionHandler();
-}
-
-void WebPageProxy::didFinishSpeaking(WebCore::PlatformSpeechSynthesisUtterance&)
-{
-    if (speechSynthesisData().speakingFinishedCompletionHandler)
-        speechSynthesisData().speakingFinishedCompletionHandler();
-}
-
-void WebPageProxy::didPauseSpeaking(WebCore::PlatformSpeechSynthesisUtterance&)
-{
-    if (speechSynthesisData().speakingPausedCompletionHandler)
-        speechSynthesisData().speakingPausedCompletionHandler();
-}
-
-void WebPageProxy::didResumeSpeaking(WebCore::PlatformSpeechSynthesisUtterance&)
-{
-    if (speechSynthesisData().speakingResumedCompletionHandler)
-        speechSynthesisData().speakingResumedCompletionHandler();
-}
-
-void WebPageProxy::speakingErrorOccurred(WebCore::PlatformSpeechSynthesisUtterance&)
-{
-    send(Messages::WebPage::SpeakingErrorOccurred());
-}
-
-void WebPageProxy::boundaryEventOccurred(WebCore::PlatformSpeechSynthesisUtterance&, WebCore::SpeechBoundary speechBoundary, unsigned charIndex, unsigned charLength)
-{
-    send(Messages::WebPage::BoundaryEventOccurred(speechBoundary == WebCore::SpeechBoundary::SpeechWordBoundary, charIndex, charLength));
-}
-
-void WebPageProxy::voicesDidChange()
-{
-    send(Messages::WebPage::VoicesDidChange());
-}
-#endif // ENABLE(SPEECH_SYNTHESIS)
-
 #if HAVE(VISIBILITY_PROPAGATION_VIEW)
 void WebPageProxy::didCreateContextInWebProcessForVisibilityPropagation(LayerHostingContextID contextID)
 {
