@@ -41,7 +41,7 @@ _ensure_directory_in_path(os.path.join(w3c_tools_dir, 'webdriver'))
 _ensure_directory_in_path(os.path.join(w3c_tools_dir, 'wptrunner'))
 
 from wptrunner.executors.base import WdspecExecutor, WdspecProtocol
-from wptrunner.webdriver_server import WebDriverServer
+from wptrunner.browsers.base import WebDriverBrowser
 
 pytest_runner = None
 
@@ -111,27 +111,40 @@ for level_name in structuredlog.log_levels:
     setattr(MessageLogger, level_name.lower(), _log_func(level_name))
 
 
-class WebKitDriverServer(WebDriverServer):
-    default_base_path = '/'
+# class WebKitDriverServer(WebDriverServer):
+#     default_base_path = '/'
+#     test_env = None
+
+#     def __init__(self, logger, binary=None, port=None, base_path='', env=None, args=None):
+#         WebDriverServer.__init__(self, logger, binary, port=port, base_path=base_path, env=self.test_env, args=args)
+
+#     def make_command(self):
+#         return [self.binary, '--port=%s' % str(self.port)] + self._args
+
+class WebKitBrowser(WebDriverBrowser):
     test_env = None
 
-    def __init__(self, logger, binary=None, port=None, base_path='', env=None, args=None):
-        WebDriverServer.__init__(self, logger, binary, port=port, base_path=base_path, env=self.test_env, args=args)
+    def __init__(self, logger, binary=None, webdriver_binary=None,
+                 webdriver_args=None, host="127.0.0.1", port=None, base_path="/",
+                 env=None, supports_pac=True, **kwargs):
+        super().__init__(self, logger, binary, webdriver_binary,
+                 webdriver_args, host, port, base_path,
+                 env=self.test_env, **kwargs)
 
     def make_command(self):
-        return [self.binary, '--port=%s' % str(self.port)] + self._args
+        return [self.webdriver_binary, f"--port={self.port}"] + self.webdriver_args
 
 
 class WebKitDriverProtocol(WdspecProtocol):
-    server_cls = WebKitDriverServer
+    browser_cls = WebKitBrowser
 
 
 class WebDriverW3CExecutor(WdspecExecutor):
     protocol_cls = WebKitDriverProtocol
 
     def __init__(self, driver, server, env, timeout, expectations):
-        WebKitDriverServer.test_env = env
-        WebKitDriverServer.test_env.update(driver.browser_env())
+        WebKitBrowser.test_env = env
+        WebKitBrowser.test_env.update(driver.browser_env())
         server_config = {'browser_host': server.host(),
                          'domains': {'': {'': server.host()},
                                      'alt':{ '': '127.0.0.1'}},
@@ -139,6 +152,7 @@ class WebDriverW3CExecutor(WdspecExecutor):
                                    'https': [server.https_port()]},
                          'doc_root': server.document_root()}
         self.runner = TestRunner()
+        # self.browser = self.procotol_cls.browser_cls(self.runner.logger, driver.binary_path(),
         WdspecExecutor.__init__(self, self.runner.logger, driver.browser_name(), server_config, driver.binary_path(), None, capabilities=driver.capabilities())
 
         self._timeout = timeout

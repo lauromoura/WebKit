@@ -4,6 +4,9 @@
     "paths_to_import": [
         "tools/webdriver",
         "tools/wptrunner",
+        "tools/wptserve",
+        "tools/third_party",
+        "tools/localpaths.py",
         "webdriver"
     ],
     "paths_to_skip": [
