@@ -541,6 +541,12 @@ EGLContext GLContext::createContextForEGLVersion(PlatformDisplay& platformDispla
             }
         }
 
+        // FIXME Likely there is a better place for this...
+        if (context != EGL_NO_CONTEXT) {
+            const char* extensions = eglQueryString(platformDisplay.eglDisplay(), EGL_EXTENSIONS);
+            context->m_supportsSwapWithDamage = GLContext::isExtensionSupported(extensions, "EGL_KHR_swap_buffers_with_damage") || GLContext::isExtensionSupported(extensions, "EGL_EXT_swap_buffers_with_damage");
+        }
+
         // If the context creation worked, just return it.
         if (context != EGL_NO_CONTEXT)
             return context;
