@@ -256,7 +256,12 @@ void ThreadedCompositor::renderLayerTree()
     m_scene->applyStateChanges(states);
     m_scene->paintToCurrentGLContext(viewportTransform, FloatRect { FloatPoint { }, viewportSize }, m_paintFlags);
 
-    m_context->swapBuffers();
+    // FIXME replace with actual tracked damage
+    m_context->swapBuffersWithDamage({
+            {1,2,3,4},
+            {10, 20, 300, 200},
+            {5, 20, 50, 120},
+        });
 
     if (m_scene->isActive())
         m_client.didRenderFrame();
