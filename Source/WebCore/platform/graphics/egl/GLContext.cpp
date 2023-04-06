@@ -49,6 +49,8 @@
 #include <X11/Xutil.h>
 #endif
 
+#include <IntRect.h>
+
 namespace WebCore {
 
 static ThreadSpecific<GLContext*>& currentContext()
@@ -583,6 +585,31 @@ void GLContext::swapBuffers()
 
     ASSERT(m_surface);
     eglSwapBuffers(m_display.eglDisplay(), m_surface);
+}
+
+void GLContext::swapBuffersWithDamage(const Vector<IntRect>& rects)
+{
+    if (m_type == Surfaceless)
+        return;
+
+    // EGL's swap_buffers_with_damage falls back to full surface damage if not rects are given
+    if (!rects.size() || !m_supportsSwapWithDamage) {
+        swapBuffers();
+        return;
+    }
+
+    auto rects_ptr = std::make_unique<int[]>(4* rects.size());
+
+    for (size_t i = 0; i < rects.size(); i++) {
+        auto& rect = rects[i];
+        rects_ptr[i*4] = rect.x();
+        rects_ptr[i*4 + 1] = rect.y();
+        rects_ptr[i*4 + 2] = rect.width();
+        rects_ptr[i*4 + 3] = rect.height();
+    }
+
+    ASSERT(m_surface);
+    eglSwapBuffersWithDamageKHR(m_display.eglDisplay(), m_surface, rects_ptr.get(), rects.size());
 }
 
 GCGLContext GLContext::platformContext() const
