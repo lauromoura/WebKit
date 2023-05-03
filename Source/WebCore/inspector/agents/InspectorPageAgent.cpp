@@ -2020,7 +2020,7 @@ Protocol::ErrorStringOr<void> InspectorPageAgent::setOrientationOverride(std::op
     return { };
 #else
     UNUSED_PARAM(angle);
-    return makeUnexpected("Orientation events are disabled in this build");
+    return makeUnexpected("Orientation events are disabled in this build"_s);
 #endif
 }
 
