@@ -87,9 +87,11 @@ void WebPageInspectorController::init()
     m_inputAgent = inputAgent.get();
     m_agents.append(WTFMove(inputAgent));
     m_agents.append(makeUnique<InspectorDialogAgent>(m_backendDispatcher.get(), m_frontendRouter.get(), m_inspectedPage));
+#if USE(LIBWEBRTC)
     auto screencastAgent = makeUnique<InspectorScreencastAgent>(m_backendDispatcher.get(), m_frontendRouter.get(), m_inspectedPage);
     m_screecastAgent = screencastAgent.get();
     m_agents.append(WTFMove(screencastAgent));
+#endif
     if (s_observer)
         s_observer->didCreateInspectorController(m_inspectedPage);
 
@@ -267,7 +269,9 @@ void WebPageInspectorController::didPaint(cairo_surface_t* surface)
     if (!m_frontendRouter->hasFrontends())
         return;
 
+#if USE(LIBWEBRTC)
     m_screecastAgent->didPaint(surface);
+#endif
 }
 #endif
 

@@ -24,6 +24,9 @@
  */
 
 #include "config.h"
+
+#if USE(LIBWEBRTC)
+
 #include "InspectorScreencastAgent.h"
 
 #include "PageClient.h"
@@ -301,3 +304,5 @@ void InspectorScreencastAgent::encodeFrame()
 #endif
 
 } // namespace WebKit
+
+#endif // USE(LIBWEBRTC)

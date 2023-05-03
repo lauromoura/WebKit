@@ -25,6 +25,8 @@
 
 #pragma once
 
+#if USE(LIBWEBRTC)
+
 #include <memory>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,3 +53,5 @@ private:
 };
 
 } // namespace WebKit
+
+#endif // USE(LIBWEBRTC)

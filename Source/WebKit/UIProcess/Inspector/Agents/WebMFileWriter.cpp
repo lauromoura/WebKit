@@ -25,6 +25,9 @@
  */
 
 #include "config.h"
+
+#if USE(LIBWEBRTC)
+
 #include "WebMFileWriter.h"
 
 #include <string>
@@ -67,3 +70,5 @@ void WebMFileWriter::finish() {
 }
 
 } // namespace WebKit
+
+#endif // USE(LIBWEBRTC)

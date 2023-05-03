@@ -442,6 +442,7 @@ void InspectorPlaywrightAgent::willCreateNewPage(WebPageProxy& page, const WebCo
         getEnabledWindowFeatures(features));
 }
 
+#if USE(LIBWEBRTC)
 void InspectorPlaywrightAgent::didFinishScreencast(const PAL::SessionID& sessionID, const String& screencastID)
 {
     if (!m_isEnabled)
@@ -449,6 +450,7 @@ void InspectorPlaywrightAgent::didFinishScreencast(const PAL::SessionID& session
 
     m_frontendDispatcher->screencastFinished(screencastID);
 }
+#endif
 
 static WebsiteDataStore* findDefaultWebsiteDataStore() {
     WebsiteDataStore* result = nullptr;

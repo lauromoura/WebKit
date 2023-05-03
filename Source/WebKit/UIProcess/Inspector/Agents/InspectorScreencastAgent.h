@@ -25,6 +25,8 @@
 
 #pragma once
 
+#if USE(LIBWEBRTC)
+
 #include <JavaScriptCore/InspectorAgentBase.h>
 #include <JavaScriptCore/InspectorBackendDispatchers.h>
 #include <JavaScriptCore/InspectorFrontendDispatchers.h>
@@ -95,3 +97,5 @@ private:
 };
 
 } // namespace WebKit
+
+#endif // USE(LIBWEBRTC)

@@ -26,6 +26,8 @@
  */
 
 #include "config.h"
+
+#if USE(LIBWEBRTC)
 #include "ScreencastEncoder.h"
 
 #include "WebMFileWriter.h"
@@ -389,3 +391,4 @@ void ScreencastEncoder::finish(Function<void()>&& callback)
 
 
 } // namespace WebKit
+#endif // USE(LIBWEBRTC)

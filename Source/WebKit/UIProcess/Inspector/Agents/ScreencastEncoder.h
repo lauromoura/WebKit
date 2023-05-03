@@ -25,6 +25,8 @@
 
 #pragma once
 
+#if USE(LIBWEBRTC)
+
 #include <WebCore/IntSize.h>
 #include <wtf/Forward.h>
 #include <wtf/MonotonicTime.h>
@@ -78,3 +80,5 @@ private:
 };
 
 } // namespace WebKit
+
+#endif // USE(LIBWEBRTC)

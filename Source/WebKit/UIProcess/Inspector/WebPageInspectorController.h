@@ -62,7 +62,9 @@ namespace WebKit {
 class InspectorBrowserAgent;
 struct WebPageAgentContext;
 
+#if USE(LIBWEBRTC)
 class InspectorScreencastAgent;
+#endif
 class WebFrameProxy;
 class WebPageInspectorEmulationAgent;
 class WebPageInspectorInputAgent;
@@ -73,7 +75,9 @@ public:
     virtual void willDestroyInspectorController(WebPageProxy&) = 0;
     virtual void didFailProvisionalLoad(WebPageProxy&, uint64_t navigationID, const String& error) = 0;
     virtual void willCreateNewPage(WebPageProxy&, const WebCore::WindowFeatures&, const URL&) = 0;
+#if USE(LIBWEBRTC)
     virtual void didFinishScreencast(const PAL::SessionID& sessionID, const String& screencastID) = 0;
+#endif
 
 protected:
     virtual ~WebPageInspectorControllerObserver() = default;
@@ -161,7 +165,9 @@ private:
     Inspector::InspectorTargetAgent* m_targetAgent { nullptr };
     WebPageInspectorEmulationAgent* m_emulationAgent { nullptr };
     WebPageInspectorInputAgent* m_inputAgent { nullptr };
+#if USE(LIBWEBRTC)
     InspectorScreencastAgent* m_screecastAgent { nullptr };
+#endif
     HashMap<String, std::unique_ptr<InspectorTargetProxy>> m_targets;
 
     InspectorBrowserAgent* m_enabledBrowserAgent { nullptr };
