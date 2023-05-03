@@ -54,7 +54,7 @@ struct _WebKitWebViewBackend {
     struct wpe_view_backend* backend;
     GDestroyNotify notifyCallback;
     gpointer notifyCallbackData;
-    take_screenshot_callback screenshotCallback;
+    WebKitWebViewScreenshotCallback screenshotCallback;
     int referenceCount { 1 };
 };
 
@@ -117,7 +117,7 @@ struct wpe_view_backend* webkit_web_view_backend_get_wpe_backend(WebKitWebViewBa
     return viewBackend->backend;
 }
 
-void webkit_web_view_backend_set_screenshot_callback(WebKitWebViewBackend *view_backend, take_screenshot_callback callback)
+void webkit_web_view_backend_set_screenshot_callback(WebKitWebViewBackend *view_backend, WebKitWebViewScreenshotCallback callback)
 {
     view_backend->screenshotCallback = callback;
 }

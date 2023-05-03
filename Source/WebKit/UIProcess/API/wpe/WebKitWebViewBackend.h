@@ -45,11 +45,21 @@ webkit_web_view_backend_new             (struct wpe_view_backend *backend,
 WEBKIT_API struct wpe_view_backend *
 webkit_web_view_backend_get_wpe_backend (WebKitWebViewBackend    *view_backend);
 
-typedef cairo_surface_t* (*take_screenshot_callback)(gpointer              user_data);
+typedef cairo_surface_t* (*WebKitWebViewScreenshotCallback)(gpointer              user_data);
 
+// FIXME Somehow g-ir-scanner isn't figuring out this block on the cpp file.
+/**
+ * webkit_web_view_backend_set_screenshot_callback:
+ * @view_backend: a #WebKitWebViewBackend
+ * @callback: (scope call): (nullable): The callback to receive the screenshot data
+ *
+ * Set the callback to receive the screenshot.
+ *
+ * Since: 2.38
+ */
 WEBKIT_API void
 webkit_web_view_backend_set_screenshot_callback   (WebKitWebViewBackend      *view_backend,
-                                                   take_screenshot_callback  callback);
+                                                   WebKitWebViewScreenshotCallback  callback);
 
 G_END_DECLS
 
