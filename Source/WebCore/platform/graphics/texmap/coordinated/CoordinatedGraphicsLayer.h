@@ -207,6 +207,7 @@ private:
     Nicosia::PlatformLayer::LayerID m_id;
     GraphicsLayerTransform m_layerTransform;
     TransformationMatrix m_cachedInverseTransform;
+    TransformationMatrix m_cachedCombinedTransform;
     FloatSize m_pixelAlignmentOffset;
     FloatSize m_adjustedSize;
     FloatPoint m_adjustedPosition;
