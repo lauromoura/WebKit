@@ -137,6 +137,7 @@ public:
                     bool debugBorderChanged : 1;
                     bool scrollingNodeChanged : 1;
                     bool eventRegionChanged : 1;
+                    bool damagedRectChanged : 1;
                 };
                 uint32_t value { 0 };
             };
@@ -174,6 +175,7 @@ public:
         WebCore::FloatSize contentsTilePhase;
         WebCore::FloatSize contentsTileSize;
         WebCore::FloatRoundedRect contentsClippingRect;
+        WebCore::FloatRect damagedRect;
 
         float opacity { 0 };
         WebCore::Color solidColor;
