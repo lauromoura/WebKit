@@ -285,6 +285,8 @@ public:
             staging.imageBacking = pending.imageBacking;
         if (pending.delta.animatedBackingStoreClientChanged)
             staging.animatedBackingStoreClient = pending.animatedBackingStoreClient;
+        if (pending.delta.damagedRectChanged)
+            staging.damagedRect = pending.damagedRect;
 
         pending.delta = { };
 

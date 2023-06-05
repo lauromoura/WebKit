@@ -1072,6 +1072,12 @@ void CoordinatedGraphicsLayer::flushCompositingStateForThisLayerOnly()
 #endif
                 if (localDelta.eventRegionChanged)
                     state.eventRegion = eventRegion();
+                if (localDelta.damagedRectChanged) {
+                    state.damagedRect = m_nicosia.damagedRect;
+                    m_nicosia.damagedRect = {};
+                }
+                // TODO we need to update the pending state with the current damage tracking information
+                // TODO what about already existing damage information?
             });
         m_nicosia.performLayerSync = !!m_nicosia.delta.value;
         m_nicosia.delta = { };
