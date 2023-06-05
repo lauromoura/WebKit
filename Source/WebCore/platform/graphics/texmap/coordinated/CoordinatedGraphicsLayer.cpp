@@ -679,6 +679,15 @@ void CoordinatedGraphicsLayer::setReplicatedByLayer(RefPtr<GraphicsLayer>&& laye
     notifyFlushRequired();
 }
 
+void CoordinatedGraphicsLayer::addDamageRegion(const FloatRect& region)
+{
+    m_nicosia.delta.damagedRectChanged = true;
+    FloatQuad quad(region);
+    quad = m_cachedCombinedTransform.mapQuad(quad);
+    FloatRect transformedRect = quad.boundingBox();
+    m_nicosia.damagedRect.unite(transformedRect);
+}
+
 void CoordinatedGraphicsLayer::setNeedsDisplay()
 {
     if (!drawsContent() || !contentsAreVisible() || m_size.isEmpty() || m_needsDisplay.completeLayer)
@@ -688,7 +697,9 @@ void CoordinatedGraphicsLayer::setNeedsDisplay()
     m_needsDisplay.rects.clear();
 
     notifyFlushRequired();
-    addRepaintRect({ { }, m_size });
+    FloatRect layerRect { {}, m_size};
+    addDamageRegion(layerRect);
+    addRepaintRect(layerRect);
 }
 
 void CoordinatedGraphicsLayer::setNeedsDisplayInRect(const FloatRect& initialRect, ShouldClipToLayer shouldClip)
@@ -715,6 +726,7 @@ void CoordinatedGraphicsLayer::setNeedsDisplayInRect(const FloatRect& initialRec
         rects[0].unite(rect);
 
     notifyFlushRequired();
+    addDamageRegion(rect);
     addRepaintRect(rect);
 }
 
