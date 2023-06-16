@@ -413,7 +413,9 @@ void CoordinatedGraphicsLayer::setContentsOpaque(bool b)
         m_needsDisplay.completeLayer = true;
         m_needsDisplay.rects.clear();
 
-        addRepaintRect({ { }, m_size });
+        FloatRect layerRect { {}, m_size};
+        addDamageRegion(layerRect);
+        addRepaintRect(layerRect);
     }
 
     notifyFlushRequired();
@@ -505,7 +507,9 @@ void CoordinatedGraphicsLayer::setContentsNeedsDisplay()
 #endif
 
     notifyFlushRequired();
-    addRepaintRect(contentsRect());
+    auto damagedRegion = contentsRect();
+    addDamageRegion(damagedRegion);
+    addRepaintRect(damagedRegion);
 }
 
 void CoordinatedGraphicsLayer::setContentsToPlatformLayer(PlatformLayer* platformLayer, ContentsLayerPurpose)
