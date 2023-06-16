@@ -76,4 +76,26 @@ ImageBacking::ImageBacking(const Impl::Factory& factory)
 ImageBacking::~ImageBacking() = default;
 ImageBacking::Impl::~Impl() = default;
 
+static std::once_flag logCheckOnce;
+static bool logBrief = false;
+static bool logDetailed = false;
+
+static void checkLogLevel() {
+    auto logLevel = std::getenv("WEBKIT_BUF_DAMAGE_LOG_LEVEL");
+    logDetailed = strcmp(logLevel, "detailed") == 0;
+    logBrief = strcmp(logLevel, "brief") == 0 || logDetailed;
+
+    if (logLevel && !logDetailed && !logBrief)
+        fprintf(stderr, "Invalid WEBKIT_BUF_DAMAGE_LOG_LEVEL: %s. Valid values are 'brief' and 'detailed'.\n", logLevel);
+}
+
+bool logDamageBufBrief() {
+    std::call_once(logCheckOnce, checkLogLevel);
+    return logBrief;
+}
+bool logDamageBufDetailed() {
+    std::call_once(logCheckOnce, checkLogLevel);
+    return logDetailed;
+}
+
 } // namespace Nicosia

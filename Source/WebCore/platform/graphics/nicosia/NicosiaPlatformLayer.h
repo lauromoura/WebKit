@@ -402,6 +402,10 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 
+// FIXME Remove this
+bool logDamageBufBrief();
+bool logDamageBufDetailed();
+
 } // namespace Nicosia
 
 #define SPECIALIZE_TYPE_TRAITS_NICOSIA_PLATFORMLAYER(ToClassName, predicate) \

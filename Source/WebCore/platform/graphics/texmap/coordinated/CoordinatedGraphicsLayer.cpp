@@ -702,6 +702,16 @@ void CoordinatedGraphicsLayer::setNeedsDisplay()
 
     notifyFlushRequired();
     FloatRect layerRect { {}, m_size};
+    if (Nicosia::logDamageBufDetailed()) {
+        fprintf(stderr, "%s %d layer name: %s\n", __FUNCTION__, __LINE__, name().utf8().data());
+        {
+            WTF::TextStream ts;
+            dumpLayer(ts);
+            fprintf(stderr, "%s %d dumpLayer: %s", __FUNCTION__, __LINE__, ts.release().utf8().data());
+        }
+        fprintf(stderr, "%s %d damaged rect bounding box: (x: %6.2ff, y: %6.2f) size (w: %10.2f x h: %10.2f)\n", __FUNCTION__, __LINE__,
+            layerRect.x(), layerRect.y(), layerRect.width(), layerRect.height());
+    }
     addDamageRegion(layerRect);
     addRepaintRect(layerRect);
 }
@@ -730,6 +740,16 @@ void CoordinatedGraphicsLayer::setNeedsDisplayInRect(const FloatRect& initialRec
         rects[0].unite(rect);
 
     notifyFlushRequired();
+    if (Nicosia::logDamageBufDetailed()) {
+        fprintf(stderr, "%s %d layer name: %s\n", __FUNCTION__, __LINE__, name().utf8().data());
+        {
+            WTF::TextStream ts;
+            dumpLayer(ts);
+            fprintf(stderr, "%s %d dumpLayer: %s", __FUNCTION__, __LINE__, ts.release().utf8().data());
+        }
+        fprintf(stderr, "%s %d damaged rect bounding box: (x: %6.2ff, y: %6.2f) size (w: %10.2f x h: %10.2f)\n", __FUNCTION__, __LINE__,
+            rect.x(), rect.y(), rect.width(), rect.height());
+    }
     addDamageRegion(rect);
     addRepaintRect(rect);
 }
