@@ -97,6 +97,8 @@ typedef void* EGLSurface;
 
 namespace WebCore {
 
+class IntRect;
+
 class GLContext {
     WTF_MAKE_NONCOPYABLE(GLContext); WTF_MAKE_FAST_ALLOCATED;
 public:
@@ -129,6 +131,7 @@ public:
 
     WEBCORE_EXPORT bool makeContextCurrent();
     WEBCORE_EXPORT void swapBuffers();
+    WEBCORE_EXPORT void swapBuffersWithDamage(const Vector<IntRect>&);
     GCGLContext platformContext() const;
 
     class ScopedGLContext {
