@@ -175,6 +175,7 @@ private:
     EGLSurface m_surface { nullptr };
     EGLConfig m_config { nullptr };
     EGLSurfaceType m_type;
+    bool m_supportsSwapWithDamage { false };
 #if PLATFORM(X11)
     XUniquePixmap m_pixmap;
 #endif
