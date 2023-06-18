@@ -452,7 +452,7 @@ GLContext::GLContext(PlatformDisplay& display, EGLContext context, EGLSurface su
     RELEASE_ASSERT(m_display.eglDisplay() != EGL_NO_DISPLAY);
     RELEASE_ASSERT(context != EGL_NO_CONTEXT);
 
-    const char* extesions = eglQueryString(platformDisplay.eglDisplay(), EGL_EXTENSIONS);
+    const char* extensions = eglQueryString(display.eglDisplay(), EGL_EXTENSIONS);
     m_supportsSwapWithDamage = GLContext::isExtensionSupported(extensions, "EGL_KHR_swap_buffers_with_damage") || GLContext::isExtensionSupported(extensions, "EGL_EXT_swap_buffers_with_damage");
 }
 
