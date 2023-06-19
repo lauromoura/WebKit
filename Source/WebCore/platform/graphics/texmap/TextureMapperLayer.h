@@ -36,6 +36,16 @@ class TextureMapper;
 class TextureMapperPaintOptions;
 class TextureMapperPlatformLayer;
 
+class TextureMapperLayer;
+
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+class WEBCORE_EXPORT TextureMapperLayerDamageVisitor {
+public:
+    virtual void recordDamage(FloatRect) = 0;
+};
+#endif // BUFFER_DAMAGE_TRACKING
+
+
 class WEBCORE_EXPORT TextureMapperLayer : public CanMakeWeakPtr<TextureMapperLayer> {
     WTF_MAKE_NONCOPYABLE(TextureMapperLayer);
     WTF_MAKE_FAST_ALLOCATED;
@@ -104,6 +114,13 @@ public:
 
     void addChild(TextureMapperLayer*);
 
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    void acceptDamageVisitor(TextureMapperLayerDamageVisitor *);
+    void dismissDamageVisitor();
+    void markDamaged(std::optional<FloatRect> target=std::nullopt);
+    void clearDamaged() { m_damaged = { }; }
+#endif
+
 private:
     TextureMapperLayer& rootLayer() const
     {
@@ -148,6 +165,9 @@ private:
     void paintSelfAndChildren(TextureMapperPaintOptions&);
     void paintSelfAndChildrenWithReplica(TextureMapperPaintOptions&);
     void applyMask(TextureMapperPaintOptions&);
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    void recordDamage(const FloatRect&, const TransformationMatrix&, const TextureMapperPaintOptions&);
+#endif
 
     bool isVisible() const;
 
@@ -228,6 +248,11 @@ private:
 #endif
     bool m_isBackdrop { false };
     bool m_isReplica { false };
+    Vector<FloatRect> m_damaged { };
+
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    TextureMapperLayerDamageVisitor* m_visitor { nullptr };
+#endif
 
     struct {
         TransformationMatrix localTransform;

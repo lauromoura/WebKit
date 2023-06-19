@@ -23,6 +23,7 @@
 
 #include "BitmapTexture.h"
 #include "FloatQuad.h"
+#include "NicosiaBufferDamage.h"
 #include "Region.h"
 #include "TextureMapper.h"
 #include <wtf/MathExtras.h>
@@ -218,8 +219,26 @@ void TextureMapperLayer::paintSelf(TextureMapperPaintOptions& options)
         solidColorLayer.setColor(m_state.solidColor);
         contentsLayer = &solidColorLayer;
     }
+
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    if (!contentsLayer) {
+        // Use the damage information we received upstairs
+        if (!m_damaged.isEmpty()) {
+            // Here we ignore the targetRect parameter as it should already have
+            // been covered by the damage tracking in setNeedsDisplay/setNeedsDisplayInRect
+            // calls from CoordinatedGraphicsLayer.
+            for (auto& region : m_damaged)
+                recordDamage(region, transform, options);
+        }
+        return;
+    }
+
+    // Layers with content layer are always fully damaged for now...
+    recordDamage(layerRect(), transform, options);
+#else
     if (!contentsLayer)
         return;
+#endif
 
     if (!m_state.contentsTileSize.isEmpty()) {
         options.textureMapper.setWrapMode(TextureMapper::WrapMode::Repeat);
@@ -827,10 +846,20 @@ void TextureMapperLayer::addChild(TextureMapperLayer* childLayer)
 
     childLayer->m_parent = this;
     m_children.append(childLayer);
+
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    if (m_visitor) {
+        childLayer->acceptDamageVisitor(m_visitor);
+    }
+#endif
 }
 
 void TextureMapperLayer::removeFromParent()
 {
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    dismissDamageVisitor();
+#endif
+
     if (m_parent) {
         size_t index = m_parent->m_children.find(this);
         ASSERT(index != notFound);
@@ -843,8 +872,12 @@ void TextureMapperLayer::removeFromParent()
 void TextureMapperLayer::removeAllChildren()
 {
     auto oldChildren = WTFMove(m_children);
-    for (auto* child : oldChildren)
+    for (auto* child : oldChildren) {
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+        child->dismissDamageVisitor();
+#endif
         child->m_parent = nullptr;
+    }
 }
 
 void TextureMapperLayer::setMaskLayer(TextureMapperLayer* maskLayer)
@@ -1035,6 +1068,10 @@ bool TextureMapperLayer::descendantsOrSelfHaveRunningAnimations() const
 bool TextureMapperLayer::applyAnimationsRecursively(MonotonicTime time)
 {
     bool hasRunningAnimations = syncAnimations(time);
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    if (hasRunningAnimations) // FIXME Too broad?
+        markDamaged();
+#endif
     if (m_state.replicaLayer)
         hasRunningAnimations |= m_state.replicaLayer->applyAnimationsRecursively(time);
     if (m_state.backdropLayer)
@@ -1062,5 +1099,57 @@ bool TextureMapperLayer::syncAnimations(MonotonicTime time)
 
     return applicationResults.hasRunningAnimations;
 }
+
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+void TextureMapperLayer::acceptDamageVisitor(TextureMapperLayerDamageVisitor* visitor)
+{
+    if (visitor == m_visitor)
+        return;
+
+    m_visitor = visitor;
+
+    for (auto* child : m_children)
+        child->acceptDamageVisitor(visitor);
+}
+
+void TextureMapperLayer::dismissDamageVisitor()
+{
+    for (auto* child : m_children)
+        child->dismissDamageVisitor();
+    m_visitor = nullptr;
+}
+
+void TextureMapperLayer::markDamaged(std::optional<FloatRect> target)
+{
+
+    auto new_region = target ? (*target) : layerRect();
+
+    if (Nicosia::damageBufUnifiedRegion()) {
+        if (m_damaged.isEmpty())
+            m_damaged.append(new_region);
+        else
+            m_damaged[0].unite(new_region);
+    } else {
+        m_damaged.append(new_region);
+    }
+}
+
+void TextureMapperLayer::recordDamage(const FloatRect& rect, const TransformationMatrix& transform, const TextureMapperPaintOptions& options)
+{
+    FloatQuad quad(rect);
+    quad = transform.mapQuad(quad);
+    FloatRect transformedRect = quad.boundingBox();
+    // Some layers are drawn on an intermediate surface and have this offset applied to convert to the
+    // intermediate surface coordinates. In order to translate back to actual coordinates,
+    // we have to undo it.
+    if (!options.offset.isZero()) {
+        transformedRect.move(-options.offset);
+    }
+    if (m_visitor) {
+        m_visitor->recordDamage(transformedRect);
+        clearDamaged();
+    }
+}
+#endif // BUFFER_DAMAGE_TRACKING
 
 }

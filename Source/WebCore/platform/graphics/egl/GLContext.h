@@ -49,6 +49,9 @@ typedef void* EGLConfig;
 typedef void* EGLContext;
 typedef void* EGLDisplay;
 typedef void* EGLSurface;
+typedef int EGLint;
+typedef unsigned int EGLBoolean;
+
 
 // X11 headers define a bunch of macros with common terms, interfering with WebCore and WTF enum values.
 // As a workaround, we explicitly undef them here.
@@ -88,6 +91,8 @@ typedef void* EGLSurface;
 
 namespace WebCore {
 
+class IntRect;
+
 class GLContext {
     WTF_MAKE_NONCOPYABLE(GLContext); WTF_MAKE_FAST_ALLOCATED;
 public:
@@ -121,6 +126,7 @@ public:
     WEBCORE_EXPORT bool makeContextCurrent();
     bool unmakeContextCurrent();
     WEBCORE_EXPORT void swapBuffers();
+    WEBCORE_EXPORT void swapBuffersWithDamage(const Vector<IntRect>&);
     GCGLContext platformContext() const;
 
     struct GLExtensions {
@@ -189,6 +195,7 @@ private:
     EGLSurface m_surface { nullptr };
     EGLConfig m_config { nullptr };
     EGLSurfaceType m_type;
+    EGLBoolean (*m_eglSwapBuffersWithDamage) (EGLDisplay, EGLSurface, EGLint *, EGLint) { nullptr };
 #if PLATFORM(X11)
     XUniquePixmap m_pixmap;
 #endif

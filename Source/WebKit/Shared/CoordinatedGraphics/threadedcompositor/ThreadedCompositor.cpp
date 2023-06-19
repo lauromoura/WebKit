@@ -29,6 +29,7 @@
 #if USE(COORDINATED_GRAPHICS)
 
 #include "CompositingRunLoop.h"
+#include <WebCore/NicosiaBufferDamage.h>
 #include <WebCore/PlatformDisplay.h>
 #include <WebCore/TransformationMatrix.h>
 #include <wtf/SetForScope.h>
@@ -276,7 +277,29 @@ void ThreadedCompositor::renderLayerTree()
     m_scene->applyStateChanges(states);
     m_scene->paintToCurrentGLContext(viewportTransform, FloatRect { FloatPoint { }, viewportSize }, m_flipY);
 
-    m_context->swapBuffers();
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    if (!m_scene->lastDamagedRects().isEmpty()) {
+        if (Nicosia::logDamageBufBrief()) {
+            fprintf(stderr, "%s %d damaged regions:\n", __FUNCTION__, __LINE__);
+            for (auto& damagedRect : m_scene->lastDamagedRects())
+                fprintf(stderr, "    (x: %10d, y: %10d) size (w: %10d x h: %10d)\n",
+                    damagedRect.x(), damagedRect.y(), damagedRect.width(), damagedRect.height());
+        }
+
+        // The damage rect originally has its coordinates origin in the top left corner, as used by CSS, Wayland, etc.
+        // We need to translate to a bottom-left origin, as expected by Mesa/EGL, which already re-translates the y coordinate
+        // internally back to top-left origin for Wayland before sending the damage rectangle.
+        auto regions = m_scene->lastDamagedRects();
+        for (auto& damagedRect : regions) {
+            damagedRect.setY(viewportSize.height() - damagedRect.y() - damagedRect.height());
+        }
+        m_context->swapBuffersWithDamage(regions);
+    } else
+#endif // BUFFER_DAMAGE_TRACKING
+    {
+        m_context->swapBuffers();
+    }
+
 
     if (m_scene->isActive())
         m_client.didRenderFrame();

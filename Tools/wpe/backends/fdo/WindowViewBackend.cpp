@@ -141,7 +141,7 @@ const struct wl_registry_listener WindowViewBackend::s_registryListener = {
         auto* window = static_cast<WindowViewBackend*>(data);
 
         if (!std::strcmp(interface, "wl_compositor"))
-            window->m_compositor = static_cast<struct wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, 1));
+            window->m_compositor = static_cast<struct wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, 4));
 
         if (!std::strcmp(interface, "xdg_wm_base"))
             window->m_xdg.wm = static_cast<struct xdg_wm_base*>(wl_registry_bind(registry, name, &xdg_wm_base_interface, 1));
@@ -1063,7 +1063,21 @@ void WindowViewBackend::displayBuffer(struct wpe_fdo_egl_exported_image* image)
     struct wl_callback* callback = wl_surface_frame(m_surface);
     wl_callback_add_listener(callback, &s_frameListener, this);
 
+#if defined(ENABLE_BUFFER_DAMAGE_TRACKING) && ENABLE_BUFFER_DAMAGE_TRACKING
+    const int32_t* damage_regions;
+    auto damage_regions_count = wpe_fdo_egl_exported_image_get_damage_regions(image, &damage_regions);
+    if (damage_regions_count && damage_regions) {
+        // FIXME Ubuntu's libepoxy seems to have pulled an older API version where the rects param isn't const
+        // FIXME Is there any case where we should call EXT instead of KHR?
+        eglSwapBuffersWithDamageKHR(connection.eglDisplay, m_eglSurface,
+                const_cast<EGLint*>(damage_regions), damage_regions_count);
+    } else {
+        eglSwapBuffers(connection.eglDisplay, m_eglSurface);
+    }
+#else
     eglSwapBuffers(connection.eglDisplay, m_eglSurface);
+#endif
+
 }
 
 #if WPE_FDO_CHECK_VERSION(1, 5, 0)

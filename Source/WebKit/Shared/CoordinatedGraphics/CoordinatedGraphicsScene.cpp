@@ -27,6 +27,7 @@
 #include <WebCore/CoordinatedBackingStore.h>
 #include <WebCore/NicosiaBackingStore.h>
 #include <WebCore/NicosiaBuffer.h>
+#include <WebCore/NicosiaBufferDamage.h>
 #include <WebCore/NicosiaCompositionLayer.h>
 #include <WebCore/NicosiaContentLayer.h>
 #include <WebCore/NicosiaImageBacking.h>
@@ -59,6 +60,10 @@ void CoordinatedGraphicsScene::applyStateChanges(const Vector<RefPtr<Nicosia::Sc
 void CoordinatedGraphicsScene::paintToCurrentGLContext(const TransformationMatrix& matrix, const FloatRect& clipRect, bool flipY)
 {
     updateSceneState();
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    // FIXME: Is there any case where we'd like to preserve damaged rect info across scene updates?
+    m_lastDamagedRects = {};
+#endif
 
     TextureMapperLayer* currentRootLayer = rootLayer();
     if (!currentRootLayer)
@@ -262,7 +267,7 @@ void CoordinatedGraphicsScene::updateSceneState()
             for (auto& compositionLayer : m_nicosia.state.layers) {
                 auto& layer = texmapLayer(*compositionLayer);
                 compositionLayer->commitState(
-                    [&layer, &layersByBacking, &replacedProxiesToInvalidate]
+                    [this, &layer, &layersByBacking, &replacedProxiesToInvalidate]
                     (const Nicosia::CompositionLayer::LayerState& layerState)
                     {
                         if (layerState.delta.positionChanged)
@@ -329,6 +334,9 @@ void CoordinatedGraphicsScene::updateSceneState()
                             layer.setDebugVisuals(layerState.debugBorder.visible, layerState.debugBorder.color, layerState.debugBorder.width);
 
                         if (layerState.backingStore) {
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+                            layer.acceptDamageVisitor(this);
+#endif
                             layersByBacking.backingStore.append(
                                 { std::ref(layer), std::ref(*layerState.backingStore), layerState.backingStore->takeUpdate() });
                         } else
@@ -348,6 +356,12 @@ void CoordinatedGraphicsScene::updateSceneState()
                             layer.setAnimatedBackingStoreClient(layerState.animatedBackingStoreClient.get());
                         else
                             layer.setAnimatedBackingStoreClient(nullptr);
+
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+                        if (layerState.delta.damagedRectsChanged)
+                            for (auto& region : layerState.damagedRects)
+                                layer.markDamaged(region);
+#endif
                     });
             }
         });
@@ -426,6 +440,9 @@ void CoordinatedGraphicsScene::ensureRootLayer()
         return;
 
     m_rootLayer = makeUnique<TextureMapperLayer>();
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    m_rootLayer->acceptDamageVisitor(this);
+#endif
     m_rootLayer->setMasksToBounds(false);
     m_rootLayer->setDrawsContent(false);
     m_rootLayer->setAnchorPoint(FloatPoint3D(0, 0, 0));
@@ -452,6 +469,9 @@ void CoordinatedGraphicsScene::purgeGLResources()
 
     m_imageBackingStoreContainers = { };
 
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+    m_rootLayer->dismissDamageVisitor();
+#endif
     m_rootLayer = nullptr;
     m_rootLayerID = 0;
     m_textureMapper = nullptr;
@@ -463,6 +483,22 @@ void CoordinatedGraphicsScene::detach()
     m_isActive = false;
     m_client = nullptr;
 }
+
+#if ENABLE(BUFFER_DAMAGE_TRACKING)
+void CoordinatedGraphicsScene::recordDamage(FloatRect damagedRect)
+{
+    auto adjustedRect = enclosingIntRect(damagedRect);
+    if (Nicosia::damageBufUnifiedRegion()) {
+        if (m_lastDamagedRects.isEmpty()) {
+            m_lastDamagedRects.append(adjustedRect);
+            return;
+        }
+        m_lastDamagedRects.first().unite(adjustedRect);
+    } else {
+        m_lastDamagedRects.append(adjustedRect);
+    }
+}
+#endif // BUFFER_DAMAGE_TRACKING
 
 } // namespace WebKit
 

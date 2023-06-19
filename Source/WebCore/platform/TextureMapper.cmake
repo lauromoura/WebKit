@@ -83,6 +83,7 @@ if (USE_COORDINATED_GRAPHICS)
     list(APPEND WebCore_SOURCES
         platform/graphics/nicosia/NicosiaBackingStore.cpp
         platform/graphics/nicosia/NicosiaBuffer.cpp
+        platform/graphics/nicosia/NicosiaBufferDamage.cpp
         platform/graphics/nicosia/NicosiaContentLayer.cpp
         platform/graphics/nicosia/NicosiaImageBacking.cpp
         platform/graphics/nicosia/NicosiaImageBackingStore.cpp
@@ -104,6 +105,7 @@ if (USE_COORDINATED_GRAPHICS)
         platform/graphics/nicosia/NicosiaAnimatedBackingStoreClient.h
         platform/graphics/nicosia/NicosiaBackingStore.h
         platform/graphics/nicosia/NicosiaBuffer.h
+        platform/graphics/nicosia/NicosiaBufferDamage.h
         platform/graphics/nicosia/NicosiaCompositionLayer.h
         platform/graphics/nicosia/NicosiaContentLayer.h
         platform/graphics/nicosia/NicosiaImageBacking.h
