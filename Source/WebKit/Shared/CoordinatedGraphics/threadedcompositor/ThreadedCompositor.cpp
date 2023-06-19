@@ -261,8 +261,7 @@ void ThreadedCompositor::renderLayerTree()
         fprintf(stderr, "\n");
     }
 
-    // TODO use damage info in swapBuffersWithDamage
-    m_context->swapBuffers();
+    m_context->swapBuffersWithDamage({WebCore::enclosingIntRect(m_scene->lastDamagedRect())});
 
     if (m_scene->isActive())
         m_client.didRenderFrame();
