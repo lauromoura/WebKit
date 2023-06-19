@@ -206,6 +206,8 @@ void CoordinatedGraphicsScene::updateSceneState()
 {
     if (!m_nicosia.scene)
         return;
+    // FIXME: Is there any case where we'd like to preserve damaged rect info across scene updates?
+    m_lastDamagedRect = {};
 
     // Store layer and impl references along with the corresponding update
     // for each type of possible layer backing.
@@ -284,7 +286,7 @@ void CoordinatedGraphicsScene::updateSceneState()
             for (auto& compositionLayer : m_nicosia.state.layers) {
                 auto& layer = texmapLayer(*compositionLayer);
                 compositionLayer->commitState(
-                    [&layer, &layersByBacking, &replacedProxiesToInvalidate]
+                    [this, &layer, &layersByBacking, &replacedProxiesToInvalidate]
                     (const Nicosia::CompositionLayer::LayerState& layerState)
                     {
                         if (layerState.delta.positionChanged)
@@ -373,6 +375,9 @@ void CoordinatedGraphicsScene::updateSceneState()
                             layer.setAnimatedBackingStoreClient(layerState.animatedBackingStoreClient.get());
                         else
                             layer.setAnimatedBackingStoreClient(nullptr);
+
+                        if (layerState.delta.damagedRectChanged)
+                            m_lastDamagedRect.unite(layerState.damagedRect);
                     });
             }
         });

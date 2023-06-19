@@ -413,7 +413,9 @@ void CoordinatedGraphicsLayer::setContentsOpaque(bool b)
         m_needsDisplay.completeLayer = true;
         m_needsDisplay.rects.clear();
 
-        addRepaintRect({ { }, m_size });
+        FloatRect layerRect { {}, m_size};
+        addDamageRegion(layerRect);
+        addRepaintRect(layerRect);
     }
 
     notifyFlushRequired();
@@ -505,7 +507,9 @@ void CoordinatedGraphicsLayer::setContentsNeedsDisplay()
 #endif
 
     notifyFlushRequired();
-    addRepaintRect(contentsRect());
+    auto damagedRegion = contentsRect();
+    addDamageRegion(damagedRegion);
+    addRepaintRect(damagedRegion);
 }
 
 void CoordinatedGraphicsLayer::setContentsToPlatformLayer(PlatformLayer* platformLayer, ContentsLayerPurpose)
@@ -679,6 +683,15 @@ void CoordinatedGraphicsLayer::setReplicatedByLayer(RefPtr<GraphicsLayer>&& laye
     notifyFlushRequired();
 }
 
+void CoordinatedGraphicsLayer::addDamageRegion(const FloatRect& region)
+{
+    m_nicosia.delta.damagedRectChanged = true;
+    FloatQuad quad(region);
+    quad = m_cachedCombinedTransform.mapQuad(quad);
+    FloatRect transformedRect = quad.boundingBox();
+    m_nicosia.damagedRect.unite(transformedRect);
+}
+
 void CoordinatedGraphicsLayer::setNeedsDisplay()
 {
     if (!drawsContent() || !contentsAreVisible() || m_size.isEmpty() || m_needsDisplay.completeLayer)
@@ -688,7 +701,19 @@ void CoordinatedGraphicsLayer::setNeedsDisplay()
     m_needsDisplay.rects.clear();
 
     notifyFlushRequired();
-    addRepaintRect({ { }, m_size });
+    FloatRect layerRect { {}, m_size};
+    if (Nicosia::logDamageBufDetailed()) {
+        fprintf(stderr, "%s %d layer name: %s\n", __FUNCTION__, __LINE__, name().utf8().data());
+        {
+            WTF::TextStream ts;
+            dumpLayer(ts);
+            fprintf(stderr, "%s %d dumpLayer: %s", __FUNCTION__, __LINE__, ts.release().utf8().data());
+        }
+        fprintf(stderr, "%s %d damaged rect bounding box: (x: %6.2ff, y: %6.2f) size (w: %10.2f x h: %10.2f)\n", __FUNCTION__, __LINE__,
+            layerRect.x(), layerRect.y(), layerRect.width(), layerRect.height());
+    }
+    addDamageRegion(layerRect);
+    addRepaintRect(layerRect);
 }
 
 void CoordinatedGraphicsLayer::setNeedsDisplayInRect(const FloatRect& initialRect, ShouldClipToLayer shouldClip)
@@ -715,6 +740,17 @@ void CoordinatedGraphicsLayer::setNeedsDisplayInRect(const FloatRect& initialRec
         rects[0].unite(rect);
 
     notifyFlushRequired();
+    if (Nicosia::logDamageBufDetailed()) {
+        fprintf(stderr, "%s %d layer name: %s\n", __FUNCTION__, __LINE__, name().utf8().data());
+        {
+            WTF::TextStream ts;
+            dumpLayer(ts);
+            fprintf(stderr, "%s %d dumpLayer: %s", __FUNCTION__, __LINE__, ts.release().utf8().data());
+        }
+        fprintf(stderr, "%s %d damaged rect bounding box: (x: %6.2ff, y: %6.2f) size (w: %10.2f x h: %10.2f)\n", __FUNCTION__, __LINE__,
+            rect.x(), rect.y(), rect.width(), rect.height());
+    }
+    addDamageRegion(rect);
     addRepaintRect(rect);
 }
 
@@ -1060,6 +1096,12 @@ void CoordinatedGraphicsLayer::flushCompositingStateForThisLayerOnly()
 #endif
                 if (localDelta.eventRegionChanged)
                     state.eventRegion = eventRegion();
+                if (localDelta.damagedRectChanged) {
+                    state.damagedRect = m_nicosia.damagedRect;
+                    m_nicosia.damagedRect = {};
+                }
+                // TODO we need to update the pending state with the current damage tracking information
+                // TODO what about already existing damage information?
             });
         m_nicosia.performLayerSync = !!m_nicosia.delta.value;
         m_nicosia.delta = { };
@@ -1379,7 +1421,8 @@ void CoordinatedGraphicsLayer::computeTransformedVisibleRect()
     m_layerTransform.setChildrenTransform(childrenTransform());
     m_layerTransform.combineTransforms(parent() ? downcast<CoordinatedGraphicsLayer>(*parent()).m_layerTransform.combinedForChildren() : TransformationMatrix());
 
-    m_cachedInverseTransform = m_layerTransform.combined().inverse().value_or(TransformationMatrix());
+    m_cachedCombinedTransform = m_layerTransform.combined();
+    m_cachedInverseTransform = m_cachedCombinedTransform.inverse().value_or(TransformationMatrix());
 
     // The combined transform will be used in tiledBackingStoreVisibleRect.
     setNeedsVisibleRectAdjustment();

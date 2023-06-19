@@ -22,6 +22,7 @@
 
 #if USE(COORDINATED_GRAPHICS)
 
+#include <WebCore/FloatRect.h>
 #include <WebCore/GraphicsContext.h>
 #include <WebCore/GraphicsLayer.h>
 #include <WebCore/IntRect.h>
@@ -75,6 +76,7 @@ public:
 
     bool isActive() const { return m_isActive; }
     void setActive(bool active) { m_isActive = active; }
+    WebCore::FloatRect lastDamagedRect() const { return m_lastDamagedRect; }
 
 private:
     void commitSceneState(const RefPtr<Nicosia::Scene>&);
@@ -98,6 +100,7 @@ private:
     // Below two members are accessed by only the main thread. The painting thread must lock the main thread to access both members.
     CoordinatedGraphicsSceneClient* m_client;
     bool m_isActive { false };
+    WebCore::FloatRect m_lastDamagedRect { };
 
     std::unique_ptr<WebCore::TextureMapperLayer> m_rootLayer;
 

@@ -254,6 +254,14 @@ void ThreadedCompositor::renderLayerTree()
     m_scene->applyStateChanges(states);
     m_scene->paintToCurrentGLContext(viewportTransform, FloatRect { FloatPoint { }, viewportSize }, m_paintFlags);
 
+    if (Nicosia::logDamageBufBrief()) {
+        auto damagedRect = m_scene->lastDamagedRect();
+        fprintf(stderr, "%s %d damaged rect bounding box: (x: %10.2f, y: %10.2f) size (w: %10.2f x h: %10.2f)\n", __FUNCTION__, __LINE__,
+            damagedRect.x(), damagedRect.y(), damagedRect.width(), damagedRect.height());
+        fprintf(stderr, "\n");
+    }
+
+    // TODO use damage info in swapBuffersWithDamage
     m_context->swapBuffers();
 
     if (m_scene->isActive())
