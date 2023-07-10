@@ -82,6 +82,8 @@ static bool logDetailed = false;
 
 static void checkLogLevel() {
     auto logLevel = std::getenv("WEBKIT_BUF_DAMAGE_LOG_LEVEL");
+    if (!logLevel)
+        return;
     logDetailed = strcmp(logLevel, "detailed") == 0;
     logBrief = strcmp(logLevel, "brief") == 0 || logDetailed;
 
