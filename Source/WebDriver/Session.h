@@ -51,6 +51,8 @@ public:
     const String& id() const;
     const Capabilities& capabilities() const;
     bool isConnected() const;
+    bool bidiFlag() const { return m_bidiFlag; };
+    void setBiDiFlag(bool flag) { m_bidiFlag = flag; }
     double scriptTimeout() const  { return m_scriptTimeout; }
     double pageLoadTimeout() const { return m_pageLoadTimeout; }
     double implicitWaitTimeout() const { return m_implicitWaitTimeout; }
@@ -224,6 +226,7 @@ private:
     std::optional<String> m_currentParentBrowsingContext;
     HashMap<String, InputSource> m_activeInputSources;
     HashMap<String, InputSourceState> m_inputStateTable;
+    bool m_bidiFlag;
 };
 
 } // WebDriver
