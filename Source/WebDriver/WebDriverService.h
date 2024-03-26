@@ -137,6 +137,7 @@ private:
     void bidiSessionStatus(unsigned id, RefPtr<JSON::Object>&&, Function<void (std::optional<WebSocketMessageHandler::Message>)>&&);
     void bidiSessionNew(unsigned id, RefPtr<JSON::Object>&&, Function<void (std::optional<WebSocketMessageHandler::Message>)>&&);
     void bidiSessionEnd(unsigned id, RefPtr<JSON::Object>&&, Function<void (std::optional<WebSocketMessageHandler::Message>)>&&);
+    void bidiSessionSubscribe(unsigned id, RefPtr<JSON::Object>&&, Function<void (std::optional<WebSocketMessageHandler::Message>)>&&);
 #endif
 
     static Capabilities platformCapabilities();
