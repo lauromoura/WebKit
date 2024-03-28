@@ -1056,7 +1056,6 @@ void WebDriverService::connectToBrowser(Vector<Capabilities>&& capabilitiesList,
     auto sessionHost = makeUnique<SessionHost>(capabilitiesList.takeLast());
     auto* sessionHostPtr = sessionHost.get();
     sessionHostPtr->setHostAddress(m_targetAddress, m_targetPort);
-#endif
     sessionHostPtr->connectToBrowser([this, capabilitiesList = WTFMove(capabilitiesList), sessionHost = WTFMove(sessionHost), completionHandler = WTFMove(completionHandler)](std::optional<String> error) mutable {
         if (error) {
             completionHandler(CommandResult::fail(CommandResult::ErrorCode::SessionNotCreated, makeString("Failed to connect to browser: ", error.value())));
