@@ -71,6 +71,7 @@ void JSGlobalObjectConsoleClient::messageWithTypeAndLevel(MessageType type, Mess
 
     String message;
     arguments->getFirstArgumentAsString(message);
+    fprintf(stderr, "%s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
     m_consoleAgent->addMessageToConsole(makeUnique<ConsoleMessage>(MessageSource::ConsoleAPI, type, level, message, WTFMove(arguments), globalObject));
 
     if (type == MessageType::Assert) {

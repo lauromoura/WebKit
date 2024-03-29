@@ -929,8 +929,10 @@ void InspectorInstrumentation::addMessageToConsoleImpl(InstrumentingAgents& inst
     MessageType type = message->type();
     String messageText = message->message();
 
-    if (auto* consoleAgent = instrumentingAgents.webConsoleAgent())
+    if (auto* consoleAgent = instrumentingAgents.webConsoleAgent()) {
+        fprintf(stderr, "%s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
         consoleAgent->addMessageToConsole(WTFMove(message));
+    }
     // FIXME: This should just pass the message on to the debugger agent. JavaScriptCore InspectorDebuggerAgent should know Console MessageTypes.
     if (auto* webDebuggerAgent = instrumentingAgents.enabledWebDebuggerAgent()) {
         if (isConsoleAssertMessage(source, type))

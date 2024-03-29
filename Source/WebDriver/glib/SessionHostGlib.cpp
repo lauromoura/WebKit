@@ -74,8 +74,11 @@ const SocketConnection::MessageHandlers& SessionHost::messageHandlers()
             const char* dummy;
             gboolean isPaired;
             while (g_variant_iter_loop(iter.get(), "(t&s&s&sb)", &targetID, &type, &name, &dummy, &isPaired)) {
-                if (!g_strcmp0(type, "Automation"))
+                fprintf(stderr, "%s %s %d testing candidate listing for type %s\n", __FILE__, __FUNCTION__, __LINE__, type);
+                if (!g_strcmp0(type, "Automation") /*|| !g_strcmp0(type, "Console")*/) {
+                    fprintf(stderr, "%s %s %d SetTargetList messageHandler with targetId %lu name %s\n", __FILE__, __FUNCTION__, __LINE__, targetID, name);
                     targetList.append({ targetID, name, static_cast<bool>(isPaired) });
+                }
             }
             sessionHost.setTargetList(connectionID, WTFMove(targetList));
         }}
@@ -380,6 +383,7 @@ void SessionHost::setTargetList(uint64_t connectionID, Vector<Target>&& targetLi
 
 void SessionHost::sendMessageToFrontend(uint64_t connectionID, uint64_t targetID, const char* message)
 {
+    fprintf(stderr, "%s %s %d conn: %lu target: %lu message: %s\n", __FILE__, __FUNCTION__, __LINE__, connectionID, targetID, message);
     if (connectionID != m_connectionID || targetID != m_target.id)
         return;
     dispatchMessage(String::fromUTF8(message));
@@ -387,6 +391,7 @@ void SessionHost::sendMessageToFrontend(uint64_t connectionID, uint64_t targetID
 
 void SessionHost::sendMessageToBackend(const String& message)
 {
+    fprintf(stderr, "%s %s %d message: %s\n", __FILE__, __FUNCTION__, __LINE__, message.utf8().data());
     ASSERT(m_socketConnection);
     ASSERT(m_connectionID);
     ASSERT(m_target.id);
