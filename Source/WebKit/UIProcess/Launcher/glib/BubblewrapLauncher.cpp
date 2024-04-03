@@ -474,6 +474,18 @@ static bool enableDebugPermissions()
     return enabled;
 }
 
+static bool enableRemoteInspectorServer()
+{
+    static int enabled = -1;
+
+    if (enabled == -1) {
+        const char* env = g_getenv("WEBKIT_INSPECTOR_SERVER");
+        enabled = env && env[0];
+    }
+
+    return enabled;
+}
+
 // Translate a libseccomp error code into an error message. libseccomp
 // mostly returns negative errno values such as -ENOMEM, but some
 // standard errno values are used for non-standard purposes where their
@@ -687,6 +699,11 @@ static bool shouldUnshareNetwork(ProcessLauncher::ProcessType processType, char*
             return false;
     }
 #endif
+
+    // RemoteInspector in WebProcess connects directly to RemoteInspectorServer in the UIProcess
+    if (processType == ProcessLauncher::ProcessType::Web && enableRemoteInspectorServer())
+        return false;
+        // return false;
 
     // Otherwise, only the network process should have network access. If we are the network
     // process, then we are not sandboxed and have already bailed out before this point.
