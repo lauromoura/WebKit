@@ -80,8 +80,10 @@ std::optional<CString> XDGDBusProxy::dbusSessionProxy(const char* baseDirectory,
     m_args.append(mprisSessionID.ascii().data());
 #endif
 
-    if (allowPortals == AllowPortals::Yes)
+    if (allowPortals == AllowPortals::Yes) {
         m_args.append("--talk=org.freedesktop.portal.Desktop");
+        m_args.append("--own=org.freedesktop.portal.ProxyResolver");
+    }
 
     if (!g_strcmp0(g_getenv("WEBKIT_ENABLE_DBUS_PROXY_LOGGING"), "1"))
         m_args.append("--log");
