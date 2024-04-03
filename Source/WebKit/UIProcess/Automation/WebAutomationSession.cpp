@@ -2456,6 +2456,39 @@ void WebAutomationSession::didTakeScreenshot(uint64_t callbackID, std::optional<
     callback->sendSuccess(base64EncodedData.value());
 }
 
+void WebAutomationSession::logEntryAdded(JSC::MessageLevel level, JSC::MessageSource source, const String& message, WallTime timestamp)
+{
+    // https://w3c.github.io/webdriver-bidi/#types-log-logentry
+    // log.Level = "debug" / "info" / "warn" / "error"
+    String levelString;
+    switch (level) {
+        case JSC::MessageLevel::Log:
+            levelString = "info"_s;
+            break;
+        case JSC::MessageLevel::Warning:
+            levelString = "warn"_s;
+            break;
+        case JSC::MessageLevel::Error:
+            levelString = "error"_s;
+            break;
+        case JSC::MessageLevel::Debug:
+            levelString = "debug"_s;
+            break;
+        case JSC::MessageLevel::Info:
+            levelString = "info"_s;
+            break;
+        default:
+            levelString = "debug"_s;
+            break;
+    }
+
+    // FIXME BiDi's spec says source param is a script.Source entry, which deals with Realms and other stuff.
+    (void)source;
+    String sourceString;
+
+    m_domainNotifier->logEntryAdded({}, levelString, sourceString, message, timestamp.secondsSinceEpoch().milliseconds());
+}
+
 #if !PLATFORM(COCOA) && !USE(CAIRO)
 std::optional<String> WebAutomationSession::platformGetBase64EncodedPNGData(ShareableBitmap::Handle&&)
 {

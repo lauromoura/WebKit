@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <JavaScriptCore/ConsoleMessage.h>
 #include <atomic>
 namespace WebCore {
 
@@ -36,6 +37,14 @@ class WEBCORE_EXPORT InspectorInstrumentationPublic {
 public:
     static bool hasFrontends() { return s_frontendCounter; }
     static std::atomic<int> s_frontendCounter;
+};
+
+
+class WEBCORE_EXPORT InspectorInstrumentationConsoleMessageClient {
+public:
+    virtual ~InspectorInstrumentationConsoleMessageClient() = default;
+
+    virtual void addMessageToConsole(const Inspector::ConsoleMessage&) = 0;
 };
 
 }

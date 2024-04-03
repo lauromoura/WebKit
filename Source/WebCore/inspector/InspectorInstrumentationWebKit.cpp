@@ -50,4 +50,10 @@ void InspectorInstrumentationWebKit::interceptResponseInternal(const LocalFrame&
     InspectorInstrumentation::interceptResponse(frame, response, identifier, WTFMove(handler));
 }
 
+void InspectorInstrumentationWebKit::addConsoleMessageClientInternal(InspectorInstrumentationConsoleMessageClient& client)
+{
+    fprintf(stderr, "%s %s %d setting client\n", __FILE__, __FUNCTION__, __LINE__);
+    InspectorInstrumentation::addConsoleMessageClient(client);
+}
+
 } // namespace WebCore

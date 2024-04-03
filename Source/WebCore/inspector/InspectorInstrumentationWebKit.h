@@ -44,12 +44,14 @@ public:
     static bool shouldInterceptResponse(const LocalFrame*, const ResourceResponse&);
     static void interceptRequest(ResourceLoader&, Function<void(const ResourceRequest&)>&&);
     static void interceptResponse(const LocalFrame*, const ResourceResponse&, ResourceLoaderIdentifier, CompletionHandler<void(const ResourceResponse&, RefPtr<FragmentedSharedBuffer>)>&&);
+    static void addConsoleMessageClient(InspectorInstrumentationConsoleMessageClient&);
 
 private:
     static bool shouldInterceptRequestInternal(const ResourceLoader&);
     static bool shouldInterceptResponseInternal(const LocalFrame&, const ResourceResponse&);
     static void interceptRequestInternal(ResourceLoader&, Function<void(const ResourceRequest&)>&&);
     static void interceptResponseInternal(const LocalFrame&, const ResourceResponse&, ResourceLoaderIdentifier, CompletionHandler<void(const ResourceResponse&, RefPtr<FragmentedSharedBuffer>)>&&);
+    static void addConsoleMessageClientInternal(InspectorInstrumentationConsoleMessageClient&);
 };
 
 inline bool InspectorInstrumentationWebKit::shouldInterceptRequest(const ResourceLoader& loader)
@@ -77,6 +79,11 @@ inline void InspectorInstrumentationWebKit::interceptResponse(const LocalFrame* 
 {
     ASSERT(InspectorInstrumentationWebKit::shouldInterceptResponse(frame, response));
     interceptResponseInternal(*frame, response, identifier, WTFMove(handler));
+}
+
+inline void InspectorInstrumentationWebKit::addConsoleMessageClient(InspectorInstrumentationConsoleMessageClient& client)
+{
+    return addConsoleMessageClientInternal(client);
 }
 
 }

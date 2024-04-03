@@ -78,7 +78,9 @@
 #include <JavaScriptCore/InspectorDebuggerAgent.h>
 #include <JavaScriptCore/ScriptArguments.h>
 #include <JavaScriptCore/ScriptCallStack.h>
+#include <memory>
 #include <wtf/StdLibExtras.h>
+#include <wtf/Vector.h>
 
 namespace WebCore {
 
@@ -86,6 +88,7 @@ using namespace Inspector;
 
 namespace {
 static HashSet<InstrumentingAgents*>* s_instrumentingAgentsSet = nullptr;
+static std::unique_ptr<Vector<InspectorInstrumentationConsoleMessageClient*>> s_consoleMessageClients = nullptr;
 }
 
 void InspectorInstrumentation::firstFrontendCreated()
@@ -920,6 +923,14 @@ static bool isConsoleAssertMessage(MessageSource source, MessageType type)
     return source == MessageSource::ConsoleAPI && type == MessageType::Assert;
 }
 
+void InspectorInstrumentation::addConsoleMessageClient(InspectorInstrumentationConsoleMessageClient& client) {
+    fprintf(stderr, "%s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
+    if (!s_consoleMessageClients)
+        s_consoleMessageClients = std::make_unique<Vector<InspectorInstrumentationConsoleMessageClient*>>();
+
+    s_consoleMessageClients->append(&client);
+}
+
 void InspectorInstrumentation::addMessageToConsoleImpl(InstrumentingAgents& instrumentingAgents, std::unique_ptr<ConsoleMessage> message)
 {
     if (LIKELY(!instrumentingAgents.inspectorEnvironment().developerExtrasEnabled()))
@@ -930,7 +941,12 @@ void InspectorInstrumentation::addMessageToConsoleImpl(InstrumentingAgents& inst
     String messageText = message->message();
 
     if (auto* consoleAgent = instrumentingAgents.webConsoleAgent()) {
-        fprintf(stderr, "%s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
+        
+        for (InspectorInstrumentationConsoleMessageClient* client : *s_consoleMessageClients) {
+            fprintf(stderr, "%s %s %d forwarding message to console listeners\n", __FILE__, __FUNCTION__, __LINE__);
+            client->addMessageToConsole(*message);
+        }
+
         consoleAgent->addMessageToConsole(WTFMove(message));
     }
     // FIXME: This should just pass the message on to the debugger agent. JavaScriptCore InspectorDebuggerAgent should know Console MessageTypes.

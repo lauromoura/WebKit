@@ -27,9 +27,11 @@
 
 #include "Connection.h"
 #include "CoordinateSystem.h"
+#include <WebCore/InspectorInstrumentationPublic.h>
 #include <JavaScriptCore/JSBase.h>
 #include <JavaScriptCore/PrivateName.h>
 #include <WebCore/FrameIdentifier.h>
+#include <WebCore/InspectorInstrumentationWebKit.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/PageIdentifier.h>
 #include <wtf/text/WTFString.h>
@@ -46,7 +48,7 @@ class WebFrame;
 class WebPage;
 class WebAutomationDOMWindowObserver;
 
-class WebAutomationSessionProxy : public IPC::MessageReceiver {
+class WebAutomationSessionProxy : public IPC::MessageReceiver, WebCore::InspectorInstrumentationConsoleMessageClient {
     WTF_MAKE_FAST_ALLOCATED;
 public:
     WebAutomationSessionProxy(const String& sessionIdentifier);
@@ -86,6 +88,8 @@ private:
     void snapshotRectForScreenshot(WebCore::PageIdentifier, std::optional<WebCore::FrameIdentifier>, String nodeHandle, bool scrollIntoViewIfNeeded, bool clipToViewport, CompletionHandler<void(std::optional<String>, WebCore::IntRect&&)>&&);
     void getCookiesForFrame(WebCore::PageIdentifier, std::optional<WebCore::FrameIdentifier>, CompletionHandler<void(std::optional<String>, Vector<WebCore::Cookie>)>&&);
     void deleteCookie(WebCore::PageIdentifier, std::optional<WebCore::FrameIdentifier>, String cookieName, CompletionHandler<void(std::optional<String>)>&&);
+
+    void addMessageToConsole(const Inspector::ConsoleMessage&);
 
     String m_sessionIdentifier;
     JSC::PrivateName m_scriptObjectIdentifier;

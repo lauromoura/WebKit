@@ -112,6 +112,7 @@ enum class StorageType : uint8_t;
 struct ComputedEffectTiming;
 struct WebSocketFrame;
 
+
 class InspectorInstrumentation {
 public:
     static void didClearWindowObjectInWorld(LocalFrame&, DOMWrapperWorld&);
@@ -248,6 +249,7 @@ public:
     static void interceptRequest(ResourceLoader&, Function<void(const ResourceRequest&)>&&);
     static void interceptResponse(const LocalFrame&, const ResourceResponse&, ResourceLoaderIdentifier, CompletionHandler<void(const ResourceResponse&, RefPtr<FragmentedSharedBuffer>)>&&);
 
+    static void addConsoleMessageClient(InspectorInstrumentationConsoleMessageClient&);
     static void addMessageToConsole(Page&, std::unique_ptr<Inspector::ConsoleMessage>);
     static void addMessageToConsole(WorkerOrWorkletGlobalScope&, std::unique_ptr<Inspector::ConsoleMessage>);
 

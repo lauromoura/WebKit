@@ -38,6 +38,7 @@
 #include "WebPage.h"
 #include "WebProcess.h"
 #include <JavaScriptCore/APICast.h>
+#include <JavaScriptCore/ConsoleMessage.h>
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/JSObject.h>
 #include <JavaScriptCore/JSStringRefPrivate.h>
@@ -57,11 +58,13 @@
 #include <WebCore/HTMLOptGroupElement.h>
 #include <WebCore/HTMLOptionElement.h>
 #include <WebCore/HTMLSelectElement.h>
+#include <WebCore/InspectorInstrumentationWebKit.h>
 #include <WebCore/JSElement.h>
 #include <WebCore/LocalDOMWindow.h>
 #include <WebCore/LocalFrame.h>
 #include <WebCore/LocalFrameView.h>
 #include <WebCore/RenderElement.h>
+#include <cstdio>
 #include <wtf/UUID.h>
 
 #if ENABLE(DATALIST_ELEMENT)
@@ -115,6 +118,7 @@ WebAutomationSessionProxy::WebAutomationSessionProxy(const String& sessionIdenti
     , m_scriptObjectIdentifier(JSC::PrivateName::Description, "automationSessionProxy"_s)
 {
     WebProcess::singleton().addMessageReceiver(Messages::WebAutomationSessionProxy::messageReceiverName(), *this);
+    InspectorInstrumentationWebKit::addConsoleMessageClient(*this);
 }
 
 WebAutomationSessionProxy::~WebAutomationSessionProxy()
@@ -1038,6 +1042,17 @@ void WebAutomationSessionProxy::deleteCookie(WebCore::PageIdentifier pageID, std
     page->corePage()->cookieJar().deleteCookie(document, document.cookieURL(), cookieName, [completionHandler = WTFMove(completionHandler)] () mutable {
         completionHandler(std::nullopt);
     });
+}
+
+void WebAutomationSessionProxy::addMessageToConsole(const Inspector::ConsoleMessage& message)
+{
+    fprintf(stderr, "%s %s %d %s\n", __FILE__, __FUNCTION__, __LINE__, message.message().utf8().data());
+    auto level = message.level();
+    auto source = message.source();
+    auto messageText = message.message();
+    auto timestamp = message.timestamp();
+
+    WebProcess::singleton().parentProcessConnection()->send(Messages::WebAutomationSession::LogEntryAdded(level, source, messageText, timestamp), 0);
 }
 
 } // namespace WebKit
