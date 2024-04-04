@@ -247,7 +247,6 @@ static bool isGroupMessage(MessageType type)
 void InspectorConsoleAgent::addConsoleMessage(std::unique_ptr<ConsoleMessage> consoleMessage)
 {
     ASSERT_ARG(consoleMessage, consoleMessage);
-    fprintf(stderr, "%s %s %d adding console message %s\n", __FILE__, __FUNCTION__, __LINE__, consoleMessage->toString().utf8().data());
 
     ConsoleMessage* previousMessage = m_consoleMessages.isEmpty() ? nullptr : m_consoleMessages.last().get();
 
@@ -261,8 +260,6 @@ void InspectorConsoleAgent::addConsoleMessage(std::unique_ptr<ConsoleMessage> co
             SetForScope isAddingMessageToFrontend(m_isAddingMessageToFrontend, true);
 
             consoleMessage->addToFrontend(*m_frontendDispatcher, m_injectedScriptManager, generatePreview);
-        } else {
-            fprintf(stderr, "%s %s %d InspectorConsoleAgent is disabled...\n", __FILE__, __FUNCTION__, __LINE__);
         }
 
         m_consoleMessages.append(WTFMove(consoleMessage));

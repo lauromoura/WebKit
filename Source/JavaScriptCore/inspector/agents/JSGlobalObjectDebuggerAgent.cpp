@@ -60,7 +60,6 @@ InjectedScript JSGlobalObjectDebuggerAgent::injectedScriptForEval(Protocol::Erro
 
 void JSGlobalObjectDebuggerAgent::breakpointActionLog(JSC::JSGlobalObject* globalObject, const String& message)
 {
-    fprintf(stderr, "%s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
     m_consoleAgent->addMessageToConsole(makeUnique<ConsoleMessage>(MessageSource::JS, MessageType::Log, MessageLevel::Log, message, createScriptCallStack(globalObject), 0));
 }
 

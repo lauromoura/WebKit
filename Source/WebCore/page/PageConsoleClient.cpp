@@ -120,7 +120,6 @@ void PageConsoleClient::unmute()
 
 void PageConsoleClient::addMessage(std::unique_ptr<Inspector::ConsoleMessage>&& consoleMessage)
 {
-    fprintf(stderr, "%s %s %d with message %s\n", __FILE__, __FUNCTION__, __LINE__, consoleMessage->message().utf8().data());
     Ref page = m_page.get();
     if (!page->usesEphemeralSession()) {
         String message;

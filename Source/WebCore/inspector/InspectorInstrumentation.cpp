@@ -924,7 +924,6 @@ static bool isConsoleAssertMessage(MessageSource source, MessageType type)
 }
 
 void InspectorInstrumentation::addConsoleMessageClient(InspectorInstrumentationConsoleMessageClient& client) {
-    fprintf(stderr, "%s %s %d \n", __FILE__, __FUNCTION__, __LINE__);
     if (!s_consoleMessageClients)
         s_consoleMessageClients = std::make_unique<Vector<InspectorInstrumentationConsoleMessageClient*>>();
 
@@ -941,9 +940,7 @@ void InspectorInstrumentation::addMessageToConsoleImpl(InstrumentingAgents& inst
     String messageText = message->message();
 
     if (auto* consoleAgent = instrumentingAgents.webConsoleAgent()) {
-        
         for (InspectorInstrumentationConsoleMessageClient* client : *s_consoleMessageClients) {
-            fprintf(stderr, "%s %s %d forwarding message to console listeners\n", __FILE__, __FUNCTION__, __LINE__);
             client->addMessageToConsole(*message);
         }
 

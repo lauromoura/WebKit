@@ -13778,7 +13778,6 @@ void WebPageProxy::requestRenderedTextForElementSelector(String&& selector, Comp
 
 void WebPageProxy::addConsoleMessage(FrameIdentifier frameID, MessageSource messageSource, MessageLevel messageLevel, const String& message, std::optional<ResourceLoaderIdentifier> coreIdentifier)
 {
-    fprintf(stderr, "%s %s %d with message %s\n", __FILE__, __FUNCTION__, __LINE__, message.utf8().data());
     send(Messages::WebPage::AddConsoleMessage { frameID, messageSource, messageLevel, message, coreIdentifier });
 }
 

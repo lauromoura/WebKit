@@ -112,7 +112,6 @@ enum class StorageType : uint8_t;
 struct ComputedEffectTiming;
 struct WebSocketFrame;
 
-
 class InspectorInstrumentation {
 public:
     static void didClearWindowObjectInWorld(LocalFrame&, DOMWrapperWorld&);

@@ -74,11 +74,8 @@ const SocketConnection::MessageHandlers& SessionHost::messageHandlers()
             const char* dummy;
             gboolean isPaired;
             while (g_variant_iter_loop(iter.get(), "(t&s&s&sb)", &targetID, &type, &name, &dummy, &isPaired)) {
-                fprintf(stderr, "%s %s %d testing candidate listing for type %s\n", __FILE__, __FUNCTION__, __LINE__, type);
-                if (!g_strcmp0(type, "Automation") /*|| !g_strcmp0(type, "Console")*/) {
-                    fprintf(stderr, "%s %s %d SetTargetList messageHandler with targetId %lu name %s\n", __FILE__, __FUNCTION__, __LINE__, targetID, name);
+                if (!g_strcmp0(type, "Automation"))
                     targetList.append({ targetID, name, static_cast<bool>(isPaired) });
-                }
             }
             sessionHost.setTargetList(connectionID, WTFMove(targetList));
         }}

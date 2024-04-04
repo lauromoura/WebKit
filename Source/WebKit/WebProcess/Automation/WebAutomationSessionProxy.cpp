@@ -1046,7 +1046,6 @@ void WebAutomationSessionProxy::deleteCookie(WebCore::PageIdentifier pageID, std
 
 void WebAutomationSessionProxy::addMessageToConsole(const Inspector::ConsoleMessage& message)
 {
-    fprintf(stderr, "%s %s %d %s\n", __FILE__, __FUNCTION__, __LINE__, message.message().utf8().data());
     auto level = message.level();
     auto source = message.source();
     auto messageText = message.message();

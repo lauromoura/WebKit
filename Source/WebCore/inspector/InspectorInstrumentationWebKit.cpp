@@ -52,7 +52,6 @@ void InspectorInstrumentationWebKit::interceptResponseInternal(const LocalFrame&
 
 void InspectorInstrumentationWebKit::addConsoleMessageClientInternal(InspectorInstrumentationConsoleMessageClient& client)
 {
-    fprintf(stderr, "%s %s %d setting client\n", __FILE__, __FUNCTION__, __LINE__);
     InspectorInstrumentation::addConsoleMessageClient(client);
 }
 
