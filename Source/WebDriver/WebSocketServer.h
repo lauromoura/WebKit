@@ -27,11 +27,13 @@
 
 #include "CommandResult.h"
 #include "HTTPServer.h"
+#include "wtf/WeakPtr.h"
 #include <map>
 #include <optional>
 #include <vector>
 #include <wtf/JSONValues.h>
 #include <wtf/text/WTFString.h>
+#include <wtf/WeakPtr.h>
 
 #if USE(SOUP)
 #include <wtf/glib/GRefPtr.h>
@@ -76,10 +78,10 @@ public:
 private:
 };
 
-class WebSocketServer {
+class WebSocketServer : public CanMakeWeakPtr<WebSocketServer> {
 public:
     explicit WebSocketServer(WebSocketMessageHandler&, WebDriverService&);
-    ~WebSocketServer() = default;
+    virtual ~WebSocketServer() = default;
 
     // FIXME Add secure flag?
     std::optional<String> listen(const std::optional<String>& host, unsigned port);
@@ -92,6 +94,7 @@ public:
     String startListeningForAWebSocketConnectionGivenSession(String sessionId);
     String constructWebSocketURLForListenerAndSession(String listener, String sessionId);
     String getSessionIDForWebSocketResource(const String& resource);
+    void sendMessageFromSession(const String& session, const String& message);
 
 private:
 

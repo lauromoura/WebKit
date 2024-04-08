@@ -170,6 +170,18 @@ std::optional<String> WebSocketServer::listen(const std::optional<String>& host,
     return m_listenerURL;
 }
 
+void WebSocketServer::sendMessageFromSession(const String& session, const String& message)
+{
+    for (const auto& pair : m_connectionToSession) {
+        if (pair.second == session) {
+            fprintf(stderr, "%s %s %d sending message %s\n", __FILE__, __FUNCTION__, __LINE__, message.utf8().data());
+            GRefPtr<GBytes> rawMessage = adoptGRef(g_bytes_new(message.utf8().data(), message.length()));
+            soup_websocket_connection_send_message(pair.first.get(), SOUP_WEBSOCKET_DATA_TEXT, rawMessage.get());
+            return;
+        }
+    }
+}
+
 bool WebSocketServer::isListening()
 {
     return !!m_soupServer;

@@ -1079,7 +1079,7 @@ void WebDriverService::createSession(Vector<Capabilities>&& capabilitiesList, st
             return;
         }
 
-        RefPtr<Session> session = Session::create(WTFMove(sessionHost));
+        RefPtr<Session> session = Session::create(WTFMove(sessionHost), m_bidiServer);
         session->createTopLevelBrowsingContext([this, session, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
             if (result.isError()) {
                 completionHandler(CommandResult::fail(CommandResult::ErrorCode::SessionNotCreated, result.errorMessage()));
@@ -2827,6 +2827,12 @@ void WebDriverService::bidiSessionSubscribe(unsigned id, RefPtr<JSON::Object>&&p
 
     // 2. Let the list of contexts be the value of the contexts field of command parameters if it is present or null if it isn’t.
     auto contexts = parameters->getArray("contexts"_s);
+
+    // FIXME: REplace this with actual steps described after the loop
+    for (auto& eventName : *eventNames) {
+        auto event = eventName->asString();
+        m_session->enableGlobalEvent(event);
+    }
 
     // 3. Let enabled events be the result of trying to update the event map with session, list of event names , list of contexts and enabled true.
     // TBD

@@ -26,6 +26,8 @@
 #pragma once
 
 #include "Capabilities.h"
+#include "wtf/RefPtr.h"
+#include "wtf/text/WTFString.h"
 #include <wtf/HashMap.h>
 #include <wtf/JSONValues.h>
 
@@ -42,6 +44,14 @@ typedef struct _GSubprocess GSubprocess;
 namespace WebDriver {
 
 struct ConnectToBrowserAsyncData;
+
+#if ENABLE(WEBDRIVER_BIDI)
+class BiDiEventHandler : public CanMakeWeakPtr<BiDiEventHandler>{
+public:
+    virtual ~BiDiEventHandler() = default;
+    virtual void dispatchEvent(RefPtr<JSON::Object>&&) = 0;
+};
+#endif
 
 class SessionHost
 #if USE(INSPECTOR_SOCKET_SERVER)
@@ -71,6 +81,10 @@ public:
     };
     long sendCommandToBackend(const String&, RefPtr<JSON::Object>&& parameters, Function<void (CommandResponse&&)>&&);
 
+#if ENABLE(WEBDRIVER_BIDI)
+    void addEventHandler(WeakPtr<BiDiEventHandler>&& handler) { m_eventHandler = WTFMove(handler); }
+#endif
+
 private:
     struct Target {
         uint64_t id { 0 };
@@ -81,6 +95,7 @@ private:
     void inspectorDisconnected();
     void sendMessageToBackend(const String&);
     void dispatchMessage(const String&);
+    void dispatchEvent(RefPtr<JSON::Object>&&);
 
 #if USE(GLIB)
     static const SocketConnection::MessageHandlers& messageHandlers();
@@ -111,6 +126,7 @@ private:
     String m_sessionID;
     uint64_t m_connectionID { 0 };
     Target m_target;
+    WeakPtr<BiDiEventHandler> m_eventHandler { nullptr };
 
     HashMap<long, Function<void (CommandResponse&&)>> m_commandRequests;
 
