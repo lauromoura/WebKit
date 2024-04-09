@@ -1046,12 +1046,13 @@ void WebAutomationSessionProxy::deleteCookie(WebCore::PageIdentifier pageID, std
 
 void WebAutomationSessionProxy::addMessageToConsole(const Inspector::ConsoleMessage& message)
 {
+    auto type = message.type();
     auto level = message.level();
     auto source = message.source();
     auto messageText = message.message();
     auto timestamp = message.timestamp();
 
-    WebProcess::singleton().parentProcessConnection()->send(Messages::WebAutomationSession::LogEntryAdded(level, source, messageText, timestamp), 0);
+    WebProcess::singleton().parentProcessConnection()->send(Messages::WebAutomationSession::LogEntryAdded(type, level, source, messageText, timestamp), 0);
 }
 
 } // namespace WebKit

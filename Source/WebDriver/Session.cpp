@@ -30,6 +30,7 @@
 #include "SessionHost.h"
 #include "WebDriverAtoms.h"
 #include "WebSocketServer.h"
+#include "wtf/text/StringBuilder.h"
 #include <cstdint>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/FileSystem.h>
@@ -3167,25 +3168,74 @@ void Session::doLogEntryAdded(RefPtr<JSON::Object>&& message)
     }
 
     // 3. Let text be an empty string.
-    String text;
-
-    // TODO suport variable args, realms, etc. For now we already receive a formatted text from the backend
-    text = params->getString("text"_s);
+    StringBuilder textBuilder;
 
     // 4. If Type(args[0]) is String, and args[0] contains a formatting specifier, let formatted args be Formatter(args). Otherwise let formatted args be args.
+    // TODO Support variable args. For now we hardcode the text as the single parameter
+    auto formatted_args = params->getArray("args"_s);
+    if (!formatted_args) {
+        formatted_args = JSON::Array::create();
+        formatted_args->pushString(params->getString("text"_s));
+    }
+    
     // 5. For each arg in formatted args:
-    //   5.1 If arg is not the first entry in args, append a U+0020 SPACE to text.
-    //   5.2 If arg is a primitive ECMAScript value, append ToString(arg) to text. Otherwise append an implementation-defined string to text.
+    for (unsigned i = 0; i < formatted_args->length(); ++i) {
+        auto arg = formatted_args->get(i);
+        //   5.1 If arg is not the first entry in args, append a U+0020 SPACE to text.
+        if (i)
+            textBuilder.append(' ');
+        //   5.2 If arg is a primitive ECMAScript value, append ToString(arg) to text. Otherwise append an implementation-defined string to text.
+        if (arg->type() == JSON::Value::Type::String)
+            textBuilder.append(arg->asString());
+        else
+            textBuilder.append("null"_s);
+    }
+
     // 6. Let realm be the realm id of the current Realm Record.
     // 7. Let serialized args be a new list.
     auto serializedArgs = JSON::Array::create();
     // 8. Let serialization options be a map matching the script.SerializationOptions production with the fields set to their default values.
     // 9. For each arg of args:
-    //  9.1 Let serialized arg be the result of serialize as a remote value with arg as value, serialization options, none as ownership type,
-    //      a new map as serialization internal map, realm and session.
-    //  9.2 Add serialized arg to serialized args.
+    for (unsigned i = 0; i < formatted_args->length(); ++i) {
+        auto arg = formatted_args->get(i);
+        //  9.1 Let serialized arg be the result of serialize as a remote value with arg as value, serialization options, none as ownership type,
+        //      a new map as serialization internal map, realm and session.
+        // FIXME: Use proper serialization options, etc
+        auto serializedArg = JSON::Object::create();
+        switch (arg->type()) {
+            case JSON::Value::Type::String:
+                serializedArg->setString("type"_s, "string"_s);
+                serializedArg->setString("value"_s, arg->asString());
+                break;
+            case JSON::Value::Type::Double:
+                serializedArg->setString("type"_s, "number"_s);
+                serializedArg->setDouble("value"_s, *arg->asDouble());
+                break;
+            case JSON::Value::Type::Boolean:
+                serializedArg->setString("type"_s, "boolean"_s);
+                serializedArg->setBoolean("value"_s, *arg->asBoolean());
+                break;
+            case JSON::Value::Type::Null:
+                serializedArg->setString("type"_s, "null"_s);
+                break;
+            case JSON::Value::Type::Object:
+                serializedArg->setString("type"_s, "object"_s);
+                serializedArg->setString("value"_s, arg->toJSONString());
+                break;
+            case JSON::Value::Type::Array:
+                serializedArg->setString("type"_s, "array"_s);
+                serializedArg->setString("value"_s, arg->toJSONString());
+                break;
+            case JSON::Value::Type::Integer:
+                serializedArg->setString("type"_s, "number"_s);
+                serializedArg->setInteger("value"_s, *arg->asInteger());
+                break;
+        }
+        //  9.2 Add serialized arg to serialized args.
+        serializedArgs->pushObject(WTFMove(serializedArg));
+    }
     // 10. Let source be the result of get the source given current Realm Record.
-    // 11. Let method is "assert", "error", "trace", or "warn", let stack be the current stack trace. Otherwise let stack be null.
+    // 11. If method is "assert", "error", "trace", or "warn", let stack be the current stack trace. Otherwise let stack be null.
     
     // 12. Let entry be a map matching the log.ConsoleLogEntry production, with the the level field set to level, the text field set to text, the timestamp
     //     field set to timestamp, the stackTrace field set to stack if stack is not null, or omitted otherwise, the method field set to method, the source
@@ -3193,7 +3243,7 @@ void Session::doLogEntryAdded(RefPtr<JSON::Object>&& message)
     auto entry = JSON::Object::create();
     entry->setString("type"_s, "console"_s);
     entry->setString("level"_s, level);
-    entry->setString("text"_s, text);
+    entry->setString("text"_s, textBuilder.toString());
     entry->setValue("timestamp"_s, *timestampValue);
     entry->setString("method"_s, method);
     entry->setArray("args"_s, serializedArgs);

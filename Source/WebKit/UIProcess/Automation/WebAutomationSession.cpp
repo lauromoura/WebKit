@@ -2456,7 +2456,7 @@ void WebAutomationSession::didTakeScreenshot(uint64_t callbackID, std::optional<
     callback->sendSuccess(base64EncodedData.value());
 }
 
-void WebAutomationSession::logEntryAdded(JSC::MessageLevel level, JSC::MessageSource source, const String& message, WallTime timestamp)
+void WebAutomationSession::logEntryAdded(JSC::MessageType type, JSC::MessageLevel level, JSC::MessageSource source, const String& message, WallTime timestamp)
 {
     // https://w3c.github.io/webdriver-bidi/#types-log-logentry
     // log.Level = "debug" / "info" / "warn" / "error"
@@ -2482,11 +2482,19 @@ void WebAutomationSession::logEntryAdded(JSC::MessageLevel level, JSC::MessageSo
             break;
     }
 
+    String method;
+    if (type == JSC::MessageType::Log)
+        method = "log"_s;
+    else {
+        // FIXME Get other methods from JSC::MessageType.
+    }
+
     // FIXME BiDi's spec says source param is a script.Source entry, which deals with Realms and other stuff.
+    // We Might need to get this info through the IPC mechanism
     (void)source;
     String sourceString;
 
-    m_domainNotifier->logEntryAdded({}, levelString, sourceString, message, timestamp.secondsSinceEpoch().milliseconds());
+    m_domainNotifier->logEntryAdded({}, method, levelString, sourceString, message, timestamp.secondsSinceEpoch().milliseconds());
 }
 
 #if !PLATFORM(COCOA) && !USE(CAIRO)

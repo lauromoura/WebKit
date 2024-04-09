@@ -261,7 +261,7 @@ private:
     // Called by WebAutomationSession messages.
     void didEvaluateJavaScriptFunction(uint64_t callbackID, const String& result, const String& errorType);
     void didTakeScreenshot(uint64_t callbackID, std::optional<WebCore::ShareableBitmap::Handle>&&, const String& errorType);
-    void logEntryAdded(JSC::MessageLevel level, JSC::MessageSource source, const String& message, WallTime timestamp);
+    void logEntryAdded(JSC::MessageType type, JSC::MessageLevel level, JSC::MessageSource source, const String& message, WallTime timestamp);
 
     // Platform-dependent implementations.
 #if ENABLE(WEBDRIVER_MOUSE_INTERACTIONS)
