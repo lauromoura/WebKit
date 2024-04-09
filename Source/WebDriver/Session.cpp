@@ -30,6 +30,7 @@
 #include "SessionHost.h"
 #include "WebDriverAtoms.h"
 #include "WebSocketServer.h"
+#include <cstdint>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/FileSystem.h>
 #include <wtf/HashSet.h>
@@ -3154,7 +3155,16 @@ void Session::doLogEntryAdded(RefPtr<JSON::Object>&& message)
 
     // 2. Let timestamp be a time value representing the current date and time in UTC.
     // Note: We already receive an epoch timestamp from the backend
-    auto timestamp = params->getDouble("timestamp"_s);
+    // WebDriver uses the ECMA time format, which is the number of milliseconds since the Unix epoch.
+    // https://tc39.es/ecma262/#sec-time-values-and-time-range
+    // FIXME Due to limitations in JSON::Object.setInteger, we have to make a detour to avoid passing it as double
+    RefPtr<JSON::Value> timestampValue;
+    if (auto timestampOpt = params->getDouble("timestamp"_s)) {
+        std::string timestampStr = std::to_string(static_cast<uint64_t>(timestampOpt.value()));
+        timestampValue = JSON::Value::parseJSON(StringView::fromLatin1(timestampStr.c_str()));
+    } else {
+        timestampValue = JSON::Value::create(0);
+    }
 
     // 3. Let text be an empty string.
     String text;
@@ -3184,7 +3194,7 @@ void Session::doLogEntryAdded(RefPtr<JSON::Object>&& message)
     entry->setString("type"_s, "console"_s);
     entry->setString("level"_s, level);
     entry->setString("text"_s, text);
-    entry->setDouble("timestamp"_s, *timestamp);
+    entry->setValue("timestamp"_s, *timestampValue);
     entry->setString("method"_s, method);
     entry->setArray("args"_s, serializedArgs);
 
