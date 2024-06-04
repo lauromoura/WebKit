@@ -144,6 +144,7 @@ enum {
     INITIALIZE_WEB_PROCESS_EXTENSIONS,
     INITIALIZE_NOTIFICATION_PERMISSIONS,
     AUTOMATION_STARTED,
+    AUTOMATION_FINISHED,
     USER_MESSAGE_RECEIVED,
 
     LAST_SIGNAL
@@ -323,6 +324,7 @@ void WebKitAutomationClient::requestAutomationSession(const String& sessionIdent
 void webkitWebContextWillCloseAutomationSession(WebKitWebContext* webContext)
 {
     webContext->priv->processPool->setAutomationSession(nullptr);
+    g_signal_emit(webContext, signals[AUTOMATION_FINISHED], 0, webContext->priv->automationSession.get());
     webContext->priv->automationSession = nullptr;
 }
 #endif
@@ -709,6 +711,32 @@ static void webkit_web_context_class_init(WebKitWebContextClass* webContextClass
      */
     signals[AUTOMATION_STARTED] =
         g_signal_new("automation-started",
+            G_TYPE_FROM_CLASS(gObjectClass),
+            G_SIGNAL_RUN_LAST,
+#if ENABLE(2022_GLIB_API)
+            0,
+#else
+            G_STRUCT_OFFSET(WebKitWebContextClass, automation_started),
+#endif
+            nullptr, nullptr,
+            g_cclosure_marshal_VOID__OBJECT,
+            G_TYPE_NONE, 1,
+            WEBKIT_TYPE_AUTOMATION_SESSION);
+
+    /**
+     * WebKitWebContext::automation-finished:
+     * @context: the #WebKitWebContext
+     * @session: the #WebKitAutomationSession associated with this event
+     *
+     * This signal is emitted when a given automation session is about to finish.
+     * It allows clients to perform any cleanup tasks before the session is destroyed.
+     * Note that it will never be emitted if automation is not enabled in @context,
+     * see webkit_web_context_set_automation_allowed() for more details.
+     *
+     * Since: 2.18
+     */
+    signals[AUTOMATION_FINISHED] =
+        g_signal_new("automation-finished",
             G_TYPE_FROM_CLASS(gObjectClass),
             G_SIGNAL_RUN_LAST,
 #if ENABLE(2022_GLIB_API)

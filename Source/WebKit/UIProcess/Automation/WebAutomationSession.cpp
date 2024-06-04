@@ -375,6 +375,12 @@ Inspector::Protocol::ErrorStringOr<void> WebAutomationSession::closeBrowsingCont
     return { };
 }
 
+Inspector::Protocol::ErrorStringOr<void> WebAutomationSession::deleteSession()
+{
+    terminate();
+    return { };
+}
+
 void WebAutomationSession::switchToBrowsingContext(const Inspector::Protocol::Automation::BrowsingContextHandle& browsingContextHandle, const Inspector::Protocol::Automation::FrameHandle& frameHandle, Ref<SwitchToBrowsingContextCallback>&& callback)
 {
     auto page = webPageProxyForHandle(browsingContextHandle);
