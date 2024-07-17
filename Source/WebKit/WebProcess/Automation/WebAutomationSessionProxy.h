@@ -30,6 +30,8 @@
 #include <JavaScriptCore/JSBase.h>
 #include <JavaScriptCore/PrivateName.h>
 #include <WebCore/FrameIdentifier.h>
+#include <WebCore/InspectorInstrumentationPublic.h>
+#include <WebCore/InspectorInstrumentationWebKit.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/PageIdentifier.h>
 #include <wtf/text/WTFString.h>
@@ -46,11 +48,20 @@ class WebFrame;
 class WebPage;
 class WebAutomationDOMWindowObserver;
 
-class WebAutomationSessionProxy : public IPC::MessageReceiver {
+class WebAutomationSessionProxy : public IPC::MessageReceiver
+#if ENABLE(WEBDRIVER_BIDI)
+, public WebCore::InspectorInstrumentationConsoleMessageClient
+#else
+, public RefCounted<WebAutomationSessionProxy>
+#endif
+{
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    WebAutomationSessionProxy(const String& sessionIdentifier);
-    ~WebAutomationSessionProxy();
+    static RefPtr<WebAutomationSessionProxy> create(const String& sessionIdentifier)
+    {
+        return adoptRef(*new WebAutomationSessionProxy(sessionIdentifier));
+    }
+    ~WebAutomationSessionProxy() override;
 
     String sessionIdentifier() const { return m_sessionIdentifier; }
 
@@ -60,6 +71,7 @@ public:
     void didEvaluateJavaScriptFunction(WebCore::FrameIdentifier, uint64_t callbackID, const String& result, const String& errorType);
 
 private:
+    WebAutomationSessionProxy(const String& sessionIdentifier);
     JSObjectRef scriptObject(JSGlobalContextRef);
     void setScriptObject(JSGlobalContextRef, JSObjectRef);
     JSObjectRef scriptObjectForFrame(WebFrame&);
@@ -86,6 +98,10 @@ private:
     void snapshotRectForScreenshot(WebCore::PageIdentifier, std::optional<WebCore::FrameIdentifier>, String nodeHandle, bool scrollIntoViewIfNeeded, bool clipToViewport, CompletionHandler<void(std::optional<String>, WebCore::IntRect&&)>&&);
     void getCookiesForFrame(WebCore::PageIdentifier, std::optional<WebCore::FrameIdentifier>, CompletionHandler<void(std::optional<String>, Vector<WebCore::Cookie>)>&&);
     void deleteCookie(WebCore::PageIdentifier, std::optional<WebCore::FrameIdentifier>, String cookieName, CompletionHandler<void(std::optional<String>)>&&);
+
+#if ENABLE(WEBDRIVER_BIDI)
+    void addMessageToConsole(const Inspector::ConsoleMessage&) override;
+#endif
 
     String m_sessionIdentifier;
     JSC::PrivateName m_scriptObjectIdentifier;
