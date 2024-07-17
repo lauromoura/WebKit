@@ -86,8 +86,12 @@ void SessionHost::dispatchMessage(const String& message)
         return;
 
     auto sequenceID = messageObject->getInteger("id"_s);
-    if (!sequenceID)
+    if (!sequenceID) {
+#if ENABLE(WEBDRIVER_BIDI)
+        dispatchEvent(WTFMove(messageObject));
+#endif
         return;
+    }
 
     auto responseHandler = m_commandRequests.take(*sequenceID);
     ASSERT(responseHandler);
@@ -116,6 +120,12 @@ void SessionHost::addBrowserTerminatedObserver(const BrowserTerminatedObserver& 
 {
     ASSERT(!browserTerminatedObservers().contains(observer));
     browserTerminatedObservers().add(observer);
+}
+
+void SessionHost::dispatchEvent(RefPtr<JSON::Object>&& event)
+{
+    if (m_eventHandler)
+        m_eventHandler->dispatchEvent(WTFMove(event));
 }
 #endif
 

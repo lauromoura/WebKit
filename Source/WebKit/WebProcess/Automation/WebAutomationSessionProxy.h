@@ -30,6 +30,8 @@
 #include <JavaScriptCore/JSBase.h>
 #include <JavaScriptCore/PrivateName.h>
 #include <WebCore/FrameIdentifier.h>
+#include <WebCore/InspectorInstrumentationPublic.h>
+#include <WebCore/InspectorInstrumentationWebKit.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/PageIdentifier.h>
 #include <wtf/TZoneMalloc.h>
@@ -51,7 +53,7 @@ class WebAutomationSessionProxy : public IPC::MessageReceiver {
     WTF_MAKE_TZONE_ALLOCATED(WebAutomationSessionProxy);
 public:
     WebAutomationSessionProxy(const String& sessionIdentifier);
-    ~WebAutomationSessionProxy();
+    ~WebAutomationSessionProxy() override;
 
     String sessionIdentifier() const { return m_sessionIdentifier; }
 
@@ -90,6 +92,11 @@ private:
 
     String m_sessionIdentifier;
     JSC::PrivateName m_scriptObjectIdentifier;
+
+#if ENABLE(WEBDRIVER_BIDI)
+    void addMessageToConsole(const Inspector::ConsoleMessage&);
+    WebCore::InspectorInstrumentationConsoleMessageObserver m_consoleMessageObserver;
+#endif
 
     HashMap<WebCore::FrameIdentifier, Vector<uint64_t>> m_webFramePendingEvaluateJavaScriptCallbacksMap;
     HashMap<WebCore::FrameIdentifier, RefPtr<WebAutomationDOMWindowObserver>> m_frameObservers;
