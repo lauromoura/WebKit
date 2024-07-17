@@ -29,12 +29,17 @@
 #include "CommandResult.h"
 #include "SessionHost.h"
 #include "WebDriverAtoms.h"
+#if ENABLE(WEBDRIVER_BIDI)
+#include "WebSocketServer.h"
+#endif
+#include <cstdint>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/FileSystem.h>
 #include <wtf/HashSet.h>
 #include <wtf/HexNumber.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/MakeString.h>
+#include <wtf/text/StringBuilder.h>
 
 namespace WebDriver {
 
@@ -65,13 +70,23 @@ Session::Session(std::unique_ptr<SessionHost>&& host)
     , m_scriptTimeout(defaultScriptTimeout)
     , m_pageLoadTimeout(defaultPageLoadTimeout)
     , m_implicitWaitTimeout(defaultImplicitWaitTimeout)
+    , m_bidiFlag(false)
 {
     if (capabilities().timeouts)
         setTimeouts(capabilities().timeouts.value(), [](CommandResult&&) { });
 }
 
+#if ENABLE(WEBDRIVER_BIDI)
+Session::Session(std::unique_ptr<SessionHost>&& host, WeakPtr<WebSocketServer>&& bidiServer)
+    : Session(WTFMove(host))
+{
+    m_bidiServer = WTFMove(bidiServer);
+}
+#endif
+
 Session::~Session()
 {
+    m_bidiServer->removeResourceForSession(id());
 }
 
 const String& Session::id() const
