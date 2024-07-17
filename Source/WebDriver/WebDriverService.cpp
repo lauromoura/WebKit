@@ -262,6 +262,7 @@ const WebDriverService::Command WebDriverService::s_commands[] = {
 #if ENABLE(WEBDRIVER_BIDI)
 const WebDriverService::BidiCommand WebDriverService::s_bidiCommands[] = {
     { "session.status"_s, &WebDriverService::bidiSessionStatus },
+    { "session.subscribe"_s, &WebDriverService::bidiSessionSubscribe },
 };
 #endif
 
@@ -2714,6 +2715,37 @@ void WebDriverService::bidiSessionStatus(unsigned id, RefPtr<JSON::Object>&& par
     auto reply = WebSocketMessageHandler::Message::reply("success"_s, id, result);
 
     // 8. Return success with data body.
+    completionHandler(reply);
+}
+
+void WebDriverService::bidiSessionSubscribe(unsigned id, RefPtr<JSON::Object>&&parameters, Function<void (std::optional<WebSocketMessageHandler::Message>)>&& completionHandler)
+{
+    // https://w3c.github.io/webdriver-bidi/#command-session-subscribe
+    // 1. Let the list of event names be the value of the events field of command parameters
+    auto eventNames = parameters->getArray("events"_s);
+
+    // 2. Let the list of contexts be the value of the contexts field of command parameters if it is present or null if it isn’t.
+    auto contexts = parameters->getArray("contexts"_s);
+
+    // FIXME: REplace this with actual steps described after the loop
+    for (auto& eventName : *eventNames) {
+        auto event = eventName->asString();
+        m_session->enableGlobalEvent(event);
+    }
+    // 3. Let enabled events be the result of trying to update the event map with session, list of event names , list of contexts and enabled true.
+    // 4. Let subscribe step events be a new map.
+    // 5. For each event name → contexts in enabled events:
+        // 5.1 If the event with event name event name defines remote end subscribe steps, set subscribe step events[event name] to contexts.
+    // 6. Sort in ascending order subscribe step events using the following less than algorithm given two entries with keys event name one and event name two:
+        // 6.1 Let event one be the event with name event name one
+        // 6.2 Let event two be the event with name event name two
+        // 6.3 Return true if event one’s subscribe priority is less than event two’s subscribe priority, or false otherwise.
+    // 7. If list of contexts is null, let include global be true, otherwise let include global be false.
+    // 8 . For each event name → contexts in subscribe step events:
+        // 8.1 Run the remote end subscribe steps for the event with event name event name given session, contexts and include global.
+
+    // 9. Return success with data null.
+    auto reply = WebSocketMessageHandler::Message::reply("success"_s, id, JSON::Value::null());
     completionHandler(reply);
 }
 

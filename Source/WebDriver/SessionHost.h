@@ -45,6 +45,14 @@ namespace WebDriver {
 
 struct ConnectToBrowserAsyncData;
 
+#if ENABLE(WEBDRIVER_BIDI)
+class BiDiEventHandler : public CanMakeWeakPtr<BiDiEventHandler>, public RefCounted<BiDiEventHandler> {
+public:
+    virtual ~BiDiEventHandler() = default;
+    virtual void dispatchEvent(RefPtr<JSON::Object>&&) = 0;
+};
+#endif
+
 class SessionHost
 #if USE(INSPECTOR_SOCKET_SERVER)
     : public Inspector::RemoteInspectorConnectionClient
@@ -80,6 +88,10 @@ public:
     };
     long sendCommandToBackend(const String&, RefPtr<JSON::Object>&& parameters, Function<void (CommandResponse&&)>&&);
 
+#if ENABLE(WEBDRIVER_BIDI)
+    void addEventHandler(WeakPtr<BiDiEventHandler>&& handler) { m_eventHandler = WTFMove(handler); }
+#endif
+
 private:
     struct Target {
         uint64_t id { 0 };
@@ -90,6 +102,9 @@ private:
     void inspectorDisconnected();
     void sendMessageToBackend(const String&);
     void dispatchMessage(const String&);
+#if ENABLE(WEBDRIVER_BIDI)
+    void dispatchEvent(RefPtr<JSON::Object>&&);
+#endif
 
 #if USE(GLIB)
     static const SocketConnection::MessageHandlers& messageHandlers();
@@ -120,6 +135,10 @@ private:
     String m_sessionID;
     uint64_t m_connectionID { 0 };
     Target m_target;
+
+#if ENABLE(WEBDRIVER_BIDI)
+    WeakPtr<BiDiEventHandler> m_eventHandler { nullptr };
+#endif
 
     HashMap<long, Function<void (CommandResponse&&)>> m_commandRequests;
 

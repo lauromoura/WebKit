@@ -38,6 +38,7 @@
 #include "WebPage.h"
 #include "WebProcess.h"
 #include <JavaScriptCore/APICast.h>
+#include <JavaScriptCore/ConsoleMessage.h>
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/JSObject.h>
 #include <JavaScriptCore/JSStringRefPrivate.h>
@@ -58,6 +59,7 @@
 #include <WebCore/HTMLOptionElement.h>
 #include <WebCore/HTMLSelectElement.h>
 #include <WebCore/HitTestSource.h>
+#include <WebCore/InspectorInstrumentationWebKit.h>
 #include <WebCore/JSElement.h>
 #include <WebCore/LocalDOMWindow.h>
 #include <WebCore/LocalFrame.h>
@@ -119,8 +121,16 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(WebAutomationSessionProxy);
 WebAutomationSessionProxy::WebAutomationSessionProxy(const String& sessionIdentifier)
     : m_sessionIdentifier(sessionIdentifier)
     , m_scriptObjectIdentifier(JSC::PrivateName::Description, "automationSessionProxy"_s)
+#if ENABLE(WEBDRIVER_BIDI)
+    , m_consoleMessageObserver([this](const Inspector::ConsoleMessage& message) {
+        addMessageToConsole(message);
+    })
+#endif
 {
     WebProcess::singleton().addMessageReceiver(Messages::WebAutomationSessionProxy::messageReceiverName(), *this);
+#if ENABLE(WEBDRIVER_BIDI)
+    InspectorInstrumentationWebKit::addConsoleMessageObserver(m_consoleMessageObserver);
+#endif
 }
 
 WebAutomationSessionProxy::~WebAutomationSessionProxy()
@@ -128,6 +138,9 @@ WebAutomationSessionProxy::~WebAutomationSessionProxy()
     m_frameObservers.clear();
 
     WebProcess::singleton().removeMessageReceiver(Messages::WebAutomationSessionProxy::messageReceiverName());
+#if ENABLE(WEBDRIVER_BIDI)
+    InspectorInstrumentationWebKit::removeConsoleMessageObserver(m_consoleMessageObserver);
+#endif
 }
 
 static bool isValidNodeHandle(const String& nodeHandle)
@@ -1067,6 +1080,19 @@ void WebAutomationSessionProxy::deleteCookie(WebCore::PageIdentifier pageID, std
         completionHandler(std::nullopt);
     });
 }
+
+#if ENABLE(WEBDRIVER_BIDI)
+void WebAutomationSessionProxy::addMessageToConsole(const Inspector::ConsoleMessage& message)
+{
+    auto type = message.type();
+    auto level = message.level();
+    auto source = message.source();
+    auto messageText = message.message();
+    auto timestamp = message.timestamp();
+
+    WebProcess::singleton().parentProcessConnection()->send(Messages::WebAutomationSession::LogEntryAdded(type, level, source, messageText, timestamp), 0);
+}
+#endif
 
 } // namespace WebKit
 
