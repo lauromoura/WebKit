@@ -286,11 +286,13 @@ void RemoteInspectorServer::connectionDidClose(SocketConnection& clientConnectio
 {
     ASSERT(m_connections.contains(&clientConnection));
     if (&clientConnection == m_automationConnection) {
-        for (auto connectionTargetPair : m_automationTargets)
+        auto automationTargets = m_automationTargets;
+        for (auto connectionTargetPair : automationTargets)
             close(clientConnection, connectionTargetPair.first, connectionTargetPair.second);
         m_automationConnection = nullptr;
     } else if (&clientConnection == m_clientConnection) {
-        for (auto connectionTargetPair : m_inspectionTargets)
+        auto inspectionTargets = m_inspectionTargets;
+        for (auto connectionTargetPair : inspectionTargets)
             close(clientConnection, connectionTargetPair.first, connectionTargetPair.second);
         m_clientConnection = nullptr;
     } else if (m_remoteInspectorConnectionToIDMap.contains(&clientConnection)) {
