@@ -2033,9 +2033,7 @@ void WebAutomationSession::performKeyboardInteractions(const Inspector::Protocol
                 ASYNC_FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(InvalidParameter, "An interaction in the 'interactions' parameter has an invalid 'key' value."_s);
 
             case Inspector::Protocol::Automation::KeyboardInteractionType::InsertByKey:
-                actionsToPerform.append([this, page, keySequence] {
-                    platformSimulateKeySequence(*page, keySequence);
-                });
+                performKeyboardSequence(page, keySequence, actionsToPerform);
                 break;
             }
         }
@@ -2063,6 +2061,60 @@ void WebAutomationSession::performKeyboardInteractions(const Inspector::Protocol
     for (auto& action : actionsToPerform)
         action();
 #endif // ENABLE(WEBDRIVER_KEYBOARD_INTERACTIONS)
+}
+
+bool isShiftedChar(UChar keyVal)
+{
+    // https://w3c.github.io/webdriver/#dfn-shifted-character
+    // A character is a shifted character if it is a character in the range U+0041 to U+005A (inclusive) or U+0061 to U+007A (inclusive).
+    return (keyVal == '~' || keyVal == '|' || keyVal == '{' || keyVal == '}' || keyVal == '<' || keyVal == '>' ||
+            keyVal == '!' || keyVal == '@' || keyVal == '#' || keyVal == '$' || keyVal == '%' || keyVal == '^' ||
+            keyVal == '&' || keyVal == '*' || keyVal == '(' || keyVal == ')' || keyVal == '_' || keyVal == '+' ||
+            (keyVal >= 'A' && keyVal <= 'Z'));
+}
+
+void WebAutomationSession::performKeyboardSequence(RefPtr<WebPageProxy>& page, const String& keySequence, Vector<WTF::Function<void()>>& actionsToPerform)
+{
+#if ENABLE(WEBDRIVER_KEYBOARD_INTERACTIONS)
+    // https://w3c.github.io/webdriver/#dfn-dispatch-the-events-for-a-typeable-string
+    // For each char of text:
+    for (unsigned i = 0; i < keySequence.length(); ++i) {
+        auto character = keySequence.characterAt(i);
+        // Let global key state be the result of get the global key state with input state.
+        // Note: Tracked by m_currentModifiers.
+
+        // If char is a shifted character, and the shifted state of source is false:
+        if (isShiftedChar(character) && !(platformWebModifiersFromRaw(*page, m_currentModifiers) & WebEventModifier::ShiftKey)) {
+            // Let action be an action object constructed with input id, "key", and "keyDown", and set its value property to U+E008 ("left shift").
+            // Let actions be the list «action».
+            // Dispatch a list of actions with input state, actions, and browsing context. 
+            actionsToPerform.append([this, page] {
+                platformSimulateKeyboardInteraction(*page, Inspector::Protocol::Automation::KeyboardInteractionType::KeyPress, Inspector::Protocol::Automation::VirtualKey::Shift);
+            });
+        // If char is not a shifted character and the shifted state of source is true:
+        } else if (!isShiftedChar(character) && (platformWebModifiersFromRaw(*page, m_currentModifiers) & WebEventModifier::ShiftKey)) {
+            // Let action be an action object constructed with input id, "key", and "keyUp", and set its value property to U+E008 ("left shift").
+            // Let tick actions be the list «action».
+            // Dispatch a list of actions with input state, actions, browsing context, and actions options.  
+            actionsToPerform.append([this, page] {
+                platformSimulateKeyboardInteraction(*page, Inspector::Protocol::Automation::KeyboardInteractionType::KeyRelease, Inspector::Protocol::Automation::VirtualKey::Shift);
+            });
+        }
+        // Let keydown action be an action object constructed with arguments input id, "key", and "keyDown".
+        // Set the value property of keydown action to char.
+        auto keydownAction = [this, page, character] {
+            platformSimulateKeyboardInteraction(*page, Inspector::Protocol::Automation::KeyboardInteractionType::KeyPress, character);
+        };
+        // Let keyup action be a copy of keydown action with the subtype property changed to "keyUp".
+        auto keyupAction = [this, page, character] {
+            platformSimulateKeyboardInteraction(*page, Inspector::Protocol::Automation::KeyboardInteractionType::KeyRelease, character);
+        };
+        // Let actions be the list «keydown action, keyup action».
+        // Dispatch a list of actions with input state, actions, browsing context, and actions options. 
+        actionsToPerform.append(WTFMove(keydownAction));
+        actionsToPerform.append(WTFMove(keyupAction));
+    }
+#endif
 }
 
 #if ENABLE(WEBDRIVER_ACTIONS_API)

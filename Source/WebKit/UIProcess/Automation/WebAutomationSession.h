@@ -219,6 +219,7 @@ public:
     Inspector::Protocol::ErrorStringOr<void> setVirtualAuthenticatorUserVerified(const String& browsingContextHandle, const String& authenticatorId, bool isUserVerified);
     Inspector::Protocol::ErrorStringOr<void> generateTestReport(const String& browsingContextHandle, const String& message, const String& group);
 
+    void performKeyboardSequence(RefPtr<WebPageProxy>& page, const String& keySequence, Vector<WTF::Function<void()>>& actionsToPerform);
 #if PLATFORM(MAC)
     void inspectBrowsingContext(const Inspector::Protocol::Automation::BrowsingContextHandle&, std::optional<bool>&& enableAutoCapturing, Ref<InspectBrowsingContextCallback>&&);
 #endif
