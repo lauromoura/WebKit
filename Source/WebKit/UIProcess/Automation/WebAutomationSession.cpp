@@ -2077,28 +2077,35 @@ void WebAutomationSession::performKeyboardSequence(RefPtr<WebPageProxy>& page, c
 {
 #if ENABLE(WEBDRIVER_KEYBOARD_INTERACTIONS)
     // https://w3c.github.io/webdriver/#dfn-dispatch-the-events-for-a-typeable-string
+
+    // Note: We cache the shift status for this sequence of the source before processing the key sequence as m_currentModifiers will be modified only
+    // when actually performing the actions.
+    bool cachedShiftPressed = platformWebModifiersFromRaw(*page, m_currentModifiers).contains(WebEventModifier::ShiftKey);
     // For each char of text:
     for (unsigned i = 0; i < keySequence.length(); ++i) {
         auto character = keySequence.characterAt(i);
         // Let global key state be the result of get the global key state with input state.
-        // Note: Tracked by m_currentModifiers.
+        // Note: Tracked by m_currentModifiers/cachedShiftPressed.
 
         // If char is a shifted character, and the shifted state of source is false:
-        if (isShiftedChar(character) && !(platformWebModifiersFromRaw(*page, m_currentModifiers) & WebEventModifier::ShiftKey)) {
+        if (isShiftedChar(character) && !cachedShiftPressed) {
             // Let action be an action object constructed with input id, "key", and "keyDown", and set its value property to U+E008 ("left shift").
             // Let actions be the list «action».
             // Dispatch a list of actions with input state, actions, and browsing context. 
             actionsToPerform.append([this, page] {
                 platformSimulateKeyboardInteraction(*page, Inspector::Protocol::Automation::KeyboardInteractionType::KeyPress, Inspector::Protocol::Automation::VirtualKey::Shift);
             });
+            cachedShiftPressed = true;
         // If char is not a shifted character and the shifted state of source is true:
-        } else if (!isShiftedChar(character) && (platformWebModifiersFromRaw(*page, m_currentModifiers) & WebEventModifier::ShiftKey)) {
+        } else if (!isShiftedChar(character) && cachedShiftPressed) {
+            fprintf(stderr, "%s %s %d non-shifted char %u, removing shift status\n", __FILE__, __FUNCTION__, __LINE__, character);
             // Let action be an action object constructed with input id, "key", and "keyUp", and set its value property to U+E008 ("left shift").
             // Let tick actions be the list «action».
             // Dispatch a list of actions with input state, actions, browsing context, and actions options.  
             actionsToPerform.append([this, page] {
                 platformSimulateKeyboardInteraction(*page, Inspector::Protocol::Automation::KeyboardInteractionType::KeyRelease, Inspector::Protocol::Automation::VirtualKey::Shift);
             });
+            cachedShiftPressed = false;
         }
         // Let keydown action be an action object constructed with arguments input id, "key", and "keyDown".
         // Set the value property of keydown action to char.
@@ -2113,6 +2120,17 @@ void WebAutomationSession::performKeyboardSequence(RefPtr<WebPageProxy>& page, c
         // Dispatch a list of actions with input state, actions, browsing context, and actions options. 
         actionsToPerform.append(WTFMove(keydownAction));
         actionsToPerform.append(WTFMove(keyupAction));
+
+        // Note: The spec does not mention the need to dispatch a shift key release for shifted chars, but given 
+        // the WebDriver service sends us individual keys to press and m_currentModifiers might not have been
+        // updated, we need to ensure that the shift key is released after each shifted char.
+        if (isShiftedChar(character) && cachedShiftPressed) {
+            fprintf(stderr, "%s %s %d adding shift keyrelease for %u\n", __FILE__, __FUNCTION__, __LINE__, character);
+            actionsToPerform.append([this, page] {
+                platformSimulateKeyboardInteraction(*page, Inspector::Protocol::Automation::KeyboardInteractionType::KeyRelease, Inspector::Protocol::Automation::VirtualKey::Shift);
+            });
+            cachedShiftPressed = false;
+        }
     }
 #endif
 }
