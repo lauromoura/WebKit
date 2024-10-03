@@ -259,6 +259,12 @@ const WebDriverService::Command WebDriverService::s_commands[] = {
     { HTTPMethod::Get, "/session/$sessionId/element/$elementId/displayed", &WebDriverService::isElementDisplayed },
 };
 
+#if ENABLE(WEBDRIVER_BIDI)
+const WebDriverService::BidiCommand WebDriverService::s_bidiCommands[] = {
+    { "session.status"_s, &WebDriverService::bidiSessionStatus },
+};
+#endif
+
 std::optional<WebDriverService::HTTPMethod> WebDriverService::toCommandHTTPMethod(const String& method)
 {
     static constexpr std::pair<ComparableLettersLiteral, WebDriverService::HTTPMethod> httpMethodMappings[] = {
@@ -407,11 +413,126 @@ bool WebDriverService::acceptHandshake(HTTPRequestHandler::Request&& request)
     return true;
 }
 
-void WebDriverService::handleMessage(WebSocketMessageHandler::Message&&, Function<void (WebSocketMessageHandler::Message&&)>&&)
+void WebDriverService::handleMessage(WebSocketMessageHandler::Message&& message, Function<void (WebSocketMessageHandler::Message&&)>&& completionHandler)
 {
     // https://w3c.github.io/webdriver-bidi/#handle-an-incoming-message
-    // TODO Implement message handling for actual BiDi commands
-    // https://bugs.webkit.org/show_bug.cgi?id=280501
+
+    if (!message.connection) {
+        WTFLogAlways("Message without attached connection. Ignoring message.");
+        return;
+    }
+
+    auto connection = message.connection;
+
+    // 3. If there is a BiDi Session associated with connection connection, let session be that session.
+    auto session = m_bidiServer.session(connection);
+    if (!session) {
+        // Otherwise if connection is in WebSocket connections not associated with a session, let session be null.
+        if (!m_bidiServer.isStaticConnection(connection)) {
+            // Otherwise, return.
+            WTFLogAlways("Unknown connection. Ignoring message.");
+            return;
+        }
+    }
+
+    // 4. Let parsed be the result of parsing JSON into Infra values given data. If this throws an exception, then send an error response given connection, null, and invalid argument, and finally return.
+    auto parsedMessageValue = JSON::Value::parseJSON(String::fromUTF8(std::span<const char>(message.data, message.dataLength)));
+    if (!parsedMessageValue) {
+        // TODO send error response
+        WTFLogAlways("WebDriver handle Message: Failed to parse incoming message");
+        completionHandler(WebSocketMessageHandler::Message::fail(CommandResult::ErrorCode::InvalidArgument, message.connection));
+        return;
+    }
+
+    // 5. If session is not null and not in active sessions then return.
+    if (session && m_session && session->id() != m_session->id()) {
+        WTFLogAlways("Not an active session. Ignoring message.");
+        return;
+    }
+
+    // 6. Match parsed against the remote end definition. If this results in a match:
+    BidiCommandHandler handler;
+    if (auto matched = findBidiCommand(parsedMessageValue, &handler)) {
+        // 6.1 Let matched be the map representing the matched data.
+        // 6.2 Assert: matched contains "id", "method", and "params".
+        // 6.3 Let command id be matched["id"].
+        // 6.4 Let method be matched["method"]
+        // 6.5 Let command be the command with command name method.
+        // 6.6 If session is null and command is not a static command, then send an error response given connection, command id, and invalid session id, and return.
+        // 6.7 Run the following steps in parallel:
+        auto parameters = matched->getObject("params"_s);
+        unsigned id = *matched->getInteger("id"_s);
+        // 6.7.1 Let result be the result of running the remote end steps for command given session and command parameters matched["params"]
+        ((*this).*handler)(id, WTFMove(parameters), [completionHandler = WTFMove(completionHandler), message](std::optional<WebSocketMessageHandler::Message> resultMessage) {
+            // TODO follow these steps more explicitly after calling the handler method
+            // 6.7.2 If result is an error, then send an error response given connection, command id, and result’s error code, and finally return.
+            // 6.7.3 Let value be result’s data.
+            // 6.7.4 Assert: value matches the definition for the result type corresponding to the command with command name method.
+            // 6.7.5 If method is "session.new", let session be the entry in the list of active sessions whose session ID is equal to the "sessionId" property of value, append connection to session’s session WebSocket connections, and remove connection from the WebSocket connections not associated with a session.
+            // 6.7.6 Let response be a new map matching the CommandResponse production in the local end definition with the id field set to command id and the value field set to value.
+            // 6.7.7 Let serialized be the result of serialize an infra value to JSON bytes given response.
+            // 6.7.8 Send a WebSocket message comprised of serialized over connection.
+            if (resultMessage) {
+                resultMessage->connection = message.connection;
+                completionHandler(WTFMove(*resultMessage));
+            }
+        });
+    } else {
+        WTFLogAlways("Failed to find appropriate command");
+        // 7. Otherwise
+        // 7.1. Let command id be null.
+        std::optional<int> commandId = std::nullopt;
+        // 7.2. If parsed is a map and parsed["id"] exists and is an integer greater than or equal to zero, set command id to that integer.
+        auto parsedMessageObject = parsedMessageValue->asObject();
+        if (parsedMessageObject) {
+            auto parsedCommandId = parsedMessageObject->getInteger("id"_s);
+            if (parsedCommandId && *parsedCommandId >= 0)
+                commandId = parsedCommandId;
+        }
+        // 7.3. Let error code be invalid argument.
+        auto errorCode = CommandResult::ErrorCode::InvalidArgument;
+
+        // 7.4. If parsed is a map and parsed["method"] exists and is a string, but parsed["method"] is not in the set of all command names, set error code to unknown command.
+        // TODO TBI
+        // 7.5. Send an error response given connection, command id, and error code.
+        auto errorReply = WebSocketMessageHandler::Message::fail(errorCode, connection, { "Command not supported"_s });
+        completionHandler(WTFMove(errorReply));
+    }
+
+}
+
+RefPtr<JSON::Object> WebDriverService::findBidiCommand(RefPtr<JSON::Value>& parameters, BidiCommandHandler* handler)
+{
+    if (!parameters)
+        return { };
+
+    auto asObject = parameters->asObject();
+    if (!asObject)
+        return { };
+
+    std::optional<int> id = asObject->getInteger("id"_s);
+    if (!id)
+        return { };
+
+    String method = asObject->getString("method"_s);
+    if (!method)
+        return { };
+
+    auto candidate = std::find_if(std::begin(s_bidiCommands), std::end(s_bidiCommands),
+        [method](const BidiCommand& command) {
+            // TODO Implement parameter matching for early rejection instead of bailing out when running the actual command?
+            return method == command.method;
+        });
+
+    if (candidate == std::end(s_bidiCommands))
+        return { };
+
+    auto result = JSON::Object::create();
+    result->setInteger("id"_s, *id);
+    result->setString("method"_s, method);
+    result->setObject("params"_s, *asObject->getObject("params"_s));
+    *handler = candidate->handler;
+    return result;
 }
 
 #endif // ENABLE(WEBDRIVER_BIDI)
@@ -2579,6 +2700,22 @@ void WebDriverService::takeElementScreenshot(RefPtr<JSON::Object>&& parameters, 
 }
 
 #if ENABLE(WEBDRIVER_BIDI)
+void WebDriverService::bidiSessionStatus(unsigned id, RefPtr<JSON::Object>&& parameters, Function<void (std::optional<WebSocketMessageHandler::Message>)>&& completionHandler)
+{
+    (void)parameters;
+    auto result = JSON::Object::create();
+    bool ready = !m_session;
+    result->setBoolean("ready"_s, ready);
+    if (ready)
+        result->setString("message"_s, "Ready for new sessions"_s);
+    else
+        result->setString("message"_s, "Maximum number of sessions created"_s);
+
+    auto reply = WebSocketMessageHandler::Message::reply("success"_s, id, result);
+
+    // 8. Return success with data body.
+    completionHandler(reply);
+}
 
 void WebDriverService::clientDisconnected(const WebSocketMessageHandler::Connection& connection)
 {

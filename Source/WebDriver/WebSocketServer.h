@@ -95,6 +95,7 @@ public:
         size_t dataLength { 0 };
 
         static Message fail(CommandResult::ErrorCode, std::optional<Connection>, std::optional<String> errorMessage = std::nullopt, std::optional<String> commandId = std::nullopt);
+        static Message reply(const String& type, unsigned id, Ref<JSON::Value>&& result);
     };
 
     virtual bool acceptHandshake(HTTPRequestHandler::Request&&) = 0;
@@ -109,6 +110,7 @@ public:
     virtual ~WebSocketServer() = default;
 
     std::optional<String> listen(const String& host, unsigned port);
+    bool isListening();
     void disconnect();
 
     WebSocketMessageHandler& messageHandler() { return m_messageHandler; }
@@ -128,6 +130,7 @@ public:
     String getResourceName(const String& sessionId);
     String getWebSocketURL(const RefPtr<WebSocketListener>, const String& sessionId);
     String getSessionID(const String& resource);
+    void sendMessage(const String& session, const String& message);
 
     // Non-spec method
     void removeResourceForSession(const String& sessionId);
