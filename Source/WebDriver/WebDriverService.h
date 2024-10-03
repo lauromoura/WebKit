@@ -133,6 +133,10 @@ private:
     void takeScreenshot(RefPtr<JSON::Object>&&, Function<void (CommandResult&&)>&&);
     void takeElementScreenshot(RefPtr<JSON::Object>&&, Function<void (CommandResult&&)>&&);
 
+#if ENABLE(WEBDRIVER_BIDI)
+    void bidiSessionStatus(unsigned id, RefPtr<JSON::Object>&&, Function<void (std::optional<WebSocketMessageHandler::Message>)>&&);
+#endif
+
     static Capabilities platformCapabilities();
     Vector<Capabilities> processCapabilities(const JSON::Object&, Function<void (CommandResult&&)>&) const;
     RefPtr<JSON::Object> validatedCapabilities(const JSON::Object&) const;
@@ -157,6 +161,15 @@ private:
     void clientDisconnected(const WebSocketMessageHandler::Connection&) override;
 
     void onBrowserTerminated(const String& sessionId);
+
+    typedef void (WebDriverService::*BidiCommandHandler)(unsigned id, RefPtr<JSON::Object>&&, Function<void (std::optional<WebSocketMessageHandler::Message>)>&&);
+    struct BidiCommand {
+        String method;
+        // FIXME Param type
+        BidiCommandHandler handler;
+    };
+    static const BidiCommand s_bidiCommands[];
+    static RefPtr<JSON::Object> findBidiCommand(RefPtr<JSON::Value>&, BidiCommandHandler*);
 #endif // ENABLE(WEBDRIVER_BIDI)
 
     HTTPServer m_server;

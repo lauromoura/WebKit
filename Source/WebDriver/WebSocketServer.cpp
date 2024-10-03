@@ -176,6 +176,23 @@ WebSocketMessageHandler::Message WebSocketMessageHandler::Message::fail(CommandR
     return { *connection, serializedReply, strlen(serializedReply) };
 }
 
+WebSocketMessageHandler::Message WebSocketMessageHandler::Message::reply(const String& type, unsigned id, Ref<JSON::Value>&& result)
+{
+    auto reply = JSON::Object::create();
+    reply->setString("type"_s, type);
+    reply->setInteger("id"_s, id);
+    auto resultObject = result->asObject();
+
+    if (resultObject)
+        reply->setObject("result"_s, resultObject.releaseNonNull());
+    else
+        reply->setObject("result"_s, JSON::Object::create());
+
+    auto serializedReply = reply->toJSONString().utf8().data();
+    auto serializedReplyLength = strlen(serializedReply);
+    return { nullptr, serializedReply, serializedReplyLength };
+}
+
 std::optional<Command> Command::fromData(const char* data, size_t dataLength)
 {
     auto messageValue = JSON::Value::parseJSON(String::fromUTF8(std::span<const char>(data, dataLength)));
