@@ -36,6 +36,7 @@
 #include "CoordinateSystem.h"
 #include "PageLoadState.h"
 #include "WebAutomationSessionMacros.h"
+#include "WebAutomationSessionMessages.h"
 #include "WebAutomationSessionProxyMessages.h"
 #include "WebFrameProxy.h"
 #include "WebFullScreenManagerProxy.h"
@@ -166,7 +167,13 @@ void WebAutomationSession::setClient(std::unique_ptr<API::AutomationSessionClien
 
 void WebAutomationSession::setProcessPool(WebKit::WebProcessPool* processPool)
 {
+    if (auto pool = protectedProcessPool())
+        pool->removeMessageReceiver(Messages::WebAutomationSession::messageReceiverName());
+
     m_processPool = processPool;
+
+    if (auto pool = protectedProcessPool())
+        pool->addMessageReceiver(Messages::WebAutomationSession::messageReceiverName(), *this);
 }
 
 RefPtr<WebProcessPool> WebAutomationSession::protectedProcessPool() const
@@ -2529,6 +2536,46 @@ Ref<Inspector::BackendDispatcher> WebAutomationSession::protectedBackendDispatch
 Ref<WebAutomationSession::Debuggable> WebAutomationSession::protectedDebuggable() const
 {
     return m_debuggable;
+}
+
+void WebAutomationSession::logEntryAdded(JSC::MessageType type, JSC::MessageLevel level, JSC::MessageSource, const String& message, WallTime timestamp)
+{
+    // https://w3c.github.io/webdriver-bidi/#types-log-logentry
+    // log.Level = "debug" / "info" / "warn" / "error"
+    String levelString;
+    switch (level) {
+    case JSC::MessageLevel::Log:
+        levelString = "info"_s;
+        break;
+    case JSC::MessageLevel::Warning:
+        levelString = "warn"_s;
+        break;
+    case JSC::MessageLevel::Error:
+        levelString = "error"_s;
+        break;
+    case JSC::MessageLevel::Debug:
+        levelString = "debug"_s;
+        break;
+    case JSC::MessageLevel::Info:
+        levelString = "info"_s;
+        break;
+    default:
+        levelString = "debug"_s;
+        break;
+    }
+
+    String method;
+    // FIXME Get other methods from JSC::MessageType?
+    if (type == JSC::MessageType::Log)
+        method = "log"_s;
+
+    // FIXME Support getting source information
+    // https://bugs.webkit.org/show_bug.cgi?id=282978
+    String sourceString;
+
+    // FIXME Get browsing context handle and source info
+    // https://bugs.webkit.org/show_bug.cgi?id=282981
+    m_domainNotifier->logEntryAdded({ }, method, levelString, sourceString, message, timestamp.secondsSinceEpoch().milliseconds());
 }
 
 #if !PLATFORM(COCOA) && !USE(CAIRO) && !USE(SKIA)

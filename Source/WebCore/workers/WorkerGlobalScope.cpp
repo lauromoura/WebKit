@@ -82,6 +82,10 @@
 #include <wtf/WorkQueue.h>
 #include <wtf/threads/BinarySemaphore.h>
 
+#if ENABLE(WEBDRIVER_BIDI)
+#include "AutomationInstrumentation.h"
+#endif
+
 namespace WebCore {
 using namespace Inspector;
 
@@ -466,6 +470,9 @@ void WorkerGlobalScope::addConsoleMessage(std::unique_ptr<Inspector::ConsoleMess
     if (UNLIKELY(settingsValues().logsPageMessagesToSystemConsoleEnabled && sessionID && !sessionID->isEphemeral()))
         PageConsoleClient::logMessageToSystemConsole(*message);
 
+#if ENABLE(WEBDRIVER_BIDI)
+    AutomationInstrumentation::addMessageToConsole(message);
+#endif
     InspectorInstrumentation::addMessageToConsole(*this, WTFMove(message));
 }
 
@@ -486,6 +493,10 @@ void WorkerGlobalScope::addMessage(MessageSource source, MessageLevel level, con
         message = makeUnique<Inspector::ConsoleMessage>(source, MessageType::Log, level, messageText, callStack.releaseNonNull(), requestIdentifier);
     else
         message = makeUnique<Inspector::ConsoleMessage>(source, MessageType::Log, level, messageText, sourceURL, lineNumber, columnNumber, state, requestIdentifier);
+
+#if ENABLE(WEBDRIVER_BIDI)
+    AutomationInstrumentation::addMessageToConsole(message);
+#endif
     InspectorInstrumentation::addMessageToConsole(*this, WTFMove(message));
 }
 
