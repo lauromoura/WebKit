@@ -42,6 +42,7 @@
 #include "WebSocketServer.h"
 #include <cstdint>
 #include <wtf/text/StringBuilder.h>
+#include <wtf/text/WTFString.h>
 #endif
 
 namespace WebDriver {
@@ -3211,13 +3212,22 @@ void Session::doLogEntryAdded(RefPtr<JSON::Object>&& message)
     // TODO Get the current stacktrace for assert, error, trace, and warn messages
     // https://bugs.webkit.org/show_bug.cgi?id=282979
 
+    auto messageType = params->getString("type"_s);
+
     auto entry = JSON::Object::create();
-    entry->setString("type"_s, "console"_s);
+    entry->setString("type"_s, messageType);
     entry->setString("level"_s, level);
     entry->setString("text"_s, messageText);
     entry->setValue("timestamp"_s, *timestampValue);
-    entry->setString("method"_s, method);
-    entry->setArray("args"_s, args);
+
+    if (messageType == "console"_s) {
+        entry->setString("method"_s, method);
+        entry->setArray("args"_s, args);
+    } else if (messageType == "javascript"_s) {
+        // Despite not having the stack information, the spec requires this
+        // field for JavaScript messages.
+        entry->setString("stackTrace"_s, emptyString());
+    }
 
     auto body = JSON::Object::create();
     body->setObject("params"_s, WTFMove(entry));
