@@ -1503,7 +1503,10 @@ void WebAutomationSession::getAllCookies(const Inspector::Protocol::Automation::
         callback->sendSuccess(buildArrayForCookies(cookies));
     };
 
-    page->protectedLegacyMainFrameProcess()->sendWithAsyncReply(Messages::WebAutomationSessionProxy::GetCookiesForFrame(page->webPageIDInMainFrameProcess(), std::nullopt), WTFMove(completionHandler));
+    // page->protectedLegacyMainFrameProcess()->sendWithAsyncReply(Messages::WebAutomationSessionProxy::GetCookiesForFrame(page->webPageIDInMainFrameProcess(), std::nullopt), WTFMove(completionHandler));
+    const auto& protectedMainFrame = page->protectedMainFrame();
+    auto frameID = std::make_optional(protectedMainFrame->frameID());
+    page->sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebAutomationSessionProxy::GetCookiesForFrame(page->webPageIDInMainFrameProcess(), frameID), WTFMove(completionHandler));
 }
 
 void WebAutomationSession::deleteSingleCookie(const Inspector::Protocol::Automation::BrowsingContextHandle& browsingContextHandle, const String& cookieName, Ref<DeleteSingleCookieCallback>&& callback)
@@ -1521,7 +1524,10 @@ void WebAutomationSession::deleteSingleCookie(const Inspector::Protocol::Automat
         callback->sendSuccess();
     };
 
-    page->protectedLegacyMainFrameProcess()->sendWithAsyncReply(Messages::WebAutomationSessionProxy::DeleteCookie(page->webPageIDInMainFrameProcess(), std::nullopt, cookieName), WTFMove(completionHandler));
+    // page->protectedLegacyMainFrameProcess()->sendWithAsyncReply(Messages::WebAutomationSessionProxy::DeleteCookie(page->webPageIDInMainFrameProcess(), std::nullopt, cookieName), WTFMove(completionHandler));
+    const auto& protectedMainFrame = page->protectedMainFrame();
+    const auto& frameID = std::make_optional(protectedMainFrame->frameID());
+    page->sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebAutomationSessionProxy::DeleteCookie(page->webPageIDInMainFrameProcess(), frameID, cookieName), WTFMove(completionHandler));
 }
 
 static String domainByAddingDotPrefixIfNeeded(String domain)
