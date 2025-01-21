@@ -49,7 +49,7 @@ void HTTPServer::disconnect()
 std::optional<ConnectionID> HTTPServer::doAccept(RemoteInspectorSocketEndpoint& endpoint, PlatformSocketType socket)
 {
     if (auto id = endpoint.createClient(socket, m_requestHandler)) {
-        m_requestHandler.connect(id.value());
+        m_requestHandler->connect(id.value());
         return id;
     }
 

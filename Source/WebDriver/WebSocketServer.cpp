@@ -38,10 +38,14 @@
 
 namespace WebDriver {
 
-WebSocketServer::WebSocketServer(WebSocketMessageHandler& messageHandler, WebDriverService& service)
+WebSocketServer::WebSocketServer(WebSocketMessageHandler& messageHandler)
     : m_messageHandler(messageHandler)
-    , m_service(service)
 {
+}
+
+Ref<WebSocketServer> WebSocketServer::create(WebSocketMessageHandler& messageHandler)
+{
+    return adoptRef(*new WebSocketServer(messageHandler));
 }
 
 void WebSocketServer::addStaticConnection(WebSocketMessageHandler::Connection&& connection)
@@ -71,7 +75,7 @@ void WebSocketServer::removeConnection(const WebSocketMessageHandler::Connection
         m_connectionToSession.remove(it);
 }
 
-RefPtr<Session> WebSocketServer::session(const WebSocketMessageHandler::Connection& connection)
+RefPtr<Session> WebSocketServer::session(const WebSocketMessageHandler::Connection& connection, RefPtr<Session> existingSession)
 {
     String sessionId;
 
@@ -85,7 +89,6 @@ RefPtr<Session> WebSocketServer::session(const WebSocketMessageHandler::Connecti
     if (sessionId.isNull())
         return { };
 
-    const auto& existingSession = m_service.session();
     if (!existingSession || (existingSession->id() != sessionId))
         return { };
 

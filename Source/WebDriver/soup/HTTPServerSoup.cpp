@@ -65,7 +65,7 @@ bool HTTPServer::listen(const std::optional<String>& host, unsigned port)
         auto* httpServer = static_cast<HTTPServer*>(userData);
         GRefPtr<SoupMessage> protectedMessage = message;
         soup_server_pause_message(server, message);
-        httpServer->m_requestHandler.handleRequest({ String::fromUTF8(message->method), String::fromUTF8(path), message->request_body->data, static_cast<size_t>(message->request_body->length) },
+        httpServer->m_requestHandler->handleRequest({ String::fromUTF8(message->method), String::fromUTF8(path), message->request_body->data, static_cast<size_t>(message->request_body->length) },
             [server, message = WTFMove(protectedMessage)](HTTPRequestHandler::Response&& response) {
                 soup_message_set_status(message.get(), response.statusCode);
                 if (!response.data.isNull()) {
@@ -90,7 +90,7 @@ bool HTTPServer::listen(const std::optional<String>& host, unsigned port)
             httpServer.m_visibleHost = visibleHostAndPort ? String::fromLatin1(visibleHostAndPort).split(':').at(0) : "localhost"_s;
         }
 
-        httpServer.m_requestHandler.handleRequest({ String::fromUTF8(soup_server_message_get_method(message)), String::fromUTF8(path), requestBody->data, static_cast<size_t>(requestBody->length) },
+        httpServer.m_requestHandler->handleRequest({ String::fromUTF8(soup_server_message_get_method(message)), String::fromUTF8(path), requestBody->data, static_cast<size_t>(requestBody->length) },
             [server, message = WTFMove(protectedMessage)](HTTPRequestHandler::Response&& response) {
                 soup_server_message_set_status(message.get(), response.statusCode, nullptr);
                 if (!response.data.isNull()) {

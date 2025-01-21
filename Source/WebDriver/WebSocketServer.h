@@ -30,11 +30,14 @@
 #include <map>
 #include <optional>
 #include <vector>
+#include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/HashMap.h>
 #include <wtf/JSONValues.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
+#include <wtf/RefPtr.h>
 #include <wtf/Vector.h>
 #include <wtf/WeakPtr.h>
+#include <wtf/WeakRef.h>
 #include <wtf/text/WTFString.h>
 
 #if USE(SOUP)
@@ -81,7 +84,7 @@ private:
 };
 
 
-class WebSocketMessageHandler {
+class WebSocketMessageHandler : public WTF::AbstractRefCountedAndCanMakeWeakPtr<WebSocketMessageHandler> {
 public:
 
 #if USE(SOUP)
@@ -106,13 +109,13 @@ private:
 
 class WebSocketServer : public RefCountedAndCanMakeWeakPtr<WebSocketServer> {
 public:
-    explicit WebSocketServer(WebSocketMessageHandler&, WebDriverService&);
     virtual ~WebSocketServer() = default;
+    static Ref<WebSocketServer> create(WebSocketMessageHandler&);
 
     std::optional<String> listen(const String& host, unsigned port);
     void disconnect();
 
-    WebSocketMessageHandler& messageHandler() { return m_messageHandler; }
+    WeakRef<WebSocketMessageHandler> messageHandler() { return m_messageHandler; }
 
     const RefPtr<WebSocketListener>& listener() const { return m_listener; }
 
@@ -121,7 +124,7 @@ public:
     void removeStaticConnection(const WebSocketMessageHandler::Connection&);
 
     void addConnection(WebSocketMessageHandler::Connection&&, const String& sessionId);
-    RefPtr<Session> session(const WebSocketMessageHandler::Connection&);
+    RefPtr<Session> session(const WebSocketMessageHandler::Connection&, RefPtr<Session> existingSession);
     std::optional<WebSocketMessageHandler::Connection> connection(const String& sessionId);
     void removeConnection(const WebSocketMessageHandler::Connection&);
 
@@ -137,8 +140,9 @@ public:
 
 private:
 
-    WebSocketMessageHandler& m_messageHandler;
-    WebDriverService& m_service;
+    explicit WebSocketServer(WebSocketMessageHandler&);
+
+    WeakRef<WebSocketMessageHandler> m_messageHandler;
     String m_listenerURL;
     RefPtr<WebSocketListener> m_listener;
     HashMap<WebSocketMessageHandler::Connection, String> m_connectionToSession;

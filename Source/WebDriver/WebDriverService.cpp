@@ -57,9 +57,9 @@ namespace WebDriver {
 static const double maxSafeInteger = 9007199254740991.0; // 2 ^ 53 - 1
 
 WebDriverService::WebDriverService()
-    : m_server(*this)
+    : m_server(HTTPServer::create(*this))
 #if ENABLE(WEBDRIVER_BIDI)
-    , m_bidiServer(*this, *this)
+    , m_bidiServer(WebSocketServer::create(*this))
     , m_browserTerminatedObserver([this](const String& sessionID) { onBrowserTerminated(sessionID); })
 #endif
 {
@@ -73,6 +73,11 @@ WebDriverService::~WebDriverService()
 #if ENABLE(WEBDRIVER_BIDI)
     SessionHost::removeBrowserTerminatedObserver(m_browserTerminatedObserver);
 #endif
+}
+
+Ref<WebDriverService> WebDriverService::create()
+{
+    return adoptRef(*new WebDriverService);
 }
 
 static void printUsageStatement(const char* programName)
@@ -187,13 +192,13 @@ int WebDriverService::run(int argc, char** argv)
 
     const char* hostStr = host && host->utf8().data() ? host->utf8().data() : "local";
 #if ENABLE(WEBDRIVER_BIDI)
-    if (!m_bidiServer.listen(host ? *host : nullString(), *bidiPort)) {
+    if (!m_bidiServer->listen(host ? *host : nullString(), *bidiPort)) {
         fprintf(stderr, "FATAL: Unable to listen for WebSocket BiDi server at host %s and port %d.\n", hostStr, *bidiPort);
         return EXIT_FAILURE;
     }
     RELEASE_LOG(WebDriverBiDi, "Started WebSocket BiDi server with host %s and port %d", hostStr, *bidiPort);
 #endif // ENABLE(WEBDRIVER_BIDI)
-    if (!m_server.listen(host, *port)) {
+    if (!m_server->listen(host, *port)) {
         fprintf(stderr, "FATAL: Unable to listen for HTTP server at host %s and port %d.\n", hostStr, *port);
         return EXIT_FAILURE;
     }
@@ -202,9 +207,9 @@ int WebDriverService::run(int argc, char** argv)
     RunLoop::run();
 
 #if ENABLE(WEBDRIVER_BIDI)
-    m_bidiServer.disconnect();
+    m_bidiServer->disconnect();
 #endif
-    m_server.disconnect();
+    m_server->disconnect();
 
     return EXIT_SUCCESS;
 }
@@ -413,7 +418,7 @@ bool WebDriverService::acceptHandshake(HTTPRequestHandler::Request&& request)
     // https://w3c.github.io/webdriver-bidi/#transport
     auto& resourceName = request.path;
 
-    auto& resources = m_bidiServer.listener()->resources;
+    auto& resources = m_bidiServer->listener()->resources;
     auto foundResource = std::find(resources.begin(), resources.end(), resourceName);
     if (foundResource == resources.end()) {
         RELEASE_LOG(WebDriverBiDi, "Resource name %s not found in listener's list of WebSocket resources. Rejecting handshake.", resourceName.utf8().data());
@@ -426,7 +431,7 @@ bool WebDriverService::acceptHandshake(HTTPRequestHandler::Request&& request)
         return false;
     }
 
-    auto sessionID = m_bidiServer.getSessionID(resourceName);
+    auto sessionID = m_bidiServer->getSessionID(resourceName);
     if (sessionID.isNull()) {
         RELEASE_LOG(WebDriverBiDi, "No session ID found for resource name %s. Rejecting handshake.", resourceName.utf8().data());
         return false;
@@ -452,9 +457,9 @@ void WebDriverService::handleMessage(WebSocketMessageHandler::Message&& message,
     }
 
     auto connection = message.connection;
-    auto session = m_bidiServer.session(connection);
+    auto session = m_bidiServer->session(connection, m_session);
     if (!session) {
-        if (!m_bidiServer.isStaticConnection(connection)) {
+        if (!m_bidiServer->isStaticConnection(connection)) {
             RELEASE_LOG(WebDriverBiDi, "Unknown connection. Ignoring message.");
             completionHandler(WebSocketMessageHandler::Message::fail(CommandResult::ErrorCode::InvalidSessionID, connection));
             return;
@@ -1041,7 +1046,7 @@ void WebDriverService::newSession(RefPtr<JSON::Object>&& parameters, Function<vo
         auto session = std::exchange(m_session, nullptr);
         session->close([this, session, matchedCapabilitiesList, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
 #if ENABLE(WEBDRIVER_BIDI)
-            m_bidiServer.disconnectSession(session->id());
+            m_bidiServer->disconnectSession(session->id());
 #endif
             // Ignore unknown errors when closing the session if the session has abeen actually closed.
             if ((!result.isError()) || (result.errorCode() == CommandResult::ErrorCode::UnknownError && !session->isConnected())) {
@@ -1153,11 +1158,11 @@ void WebDriverService::createSession(Vector<Capabilities>&& capabilitiesList, Re
 #if ENABLE(WEBDRIVER_BIDI)
             // Extension steps defined by BiDi spec: https://w3c.github.io/webdriver-bidi/#establishing
             if (!m_session->hasBiDiEnabled() && capabilities.webSocketURL && *capabilities.webSocketURL) {
-                auto listener = m_bidiServer.startListening(m_session->id());
+                auto listener = m_bidiServer->startListening(m_session->id());
                 // We need to update the listener host to a visible one so remote clients can connect to it.
-                listener->host = m_server.visibleHost();
+                listener->host = m_server->visibleHost();
 
-                auto webSocketURL = m_bidiServer.getWebSocketURL(listener, m_session->id());
+                auto webSocketURL = m_bidiServer->getWebSocketURL(listener, m_session->id());
                 capabilitiesObject->setString("webSocketUrl"_s, webSocketURL);
                 m_session->setHasBiDiEnabled(true);
             } else {
@@ -1194,7 +1199,7 @@ void WebDriverService::deleteSession(RefPtr<JSON::Object>&& parameters, Function
     session->close([this, session, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
         UNUSED_VARIABLE(this); // Conditionally used in ENABLE(WEBDRIVER_BIDI) block.
 #if ENABLE(WEBDRIVER_BIDI)
-        m_bidiServer.disconnectSession(session->id());
+        m_bidiServer->disconnectSession(session->id());
 #endif
         // Ignore unknown errors when closing the session if the session has abeen actually closed.
         if (result.isError() && result.errorCode() == CommandResult::ErrorCode::UnknownError && !session->isConnected())
@@ -2769,18 +2774,18 @@ void WebDriverService::bidiSessionUnsubscribe(unsigned id, RefPtr<JSON::Object>&
 void WebDriverService::clientDisconnected(const WebSocketMessageHandler::Connection& connection)
 {
     // https://w3c.github.io/webdriver-bidi/#handle-a-connection-closing
-    if (m_bidiServer.session(connection))
-        m_bidiServer.removeConnection(connection);
-    else if (m_bidiServer.isStaticConnection(connection))
-        m_bidiServer.removeStaticConnection(connection);
+    if (m_bidiServer->session(connection, m_session))
+        m_bidiServer->removeConnection(connection);
+    else if (m_bidiServer->isStaticConnection(connection))
+        m_bidiServer->removeStaticConnection(connection);
     // Note from spec: This does not end any session.
 }
 
 void WebDriverService::onBrowserTerminated(const String& sessionID)
 {
     if (m_session && m_session->id() == sessionID) {
-        auto connection = m_bidiServer.connection(sessionID);
-        m_bidiServer.disconnectSession(sessionID);
+        auto connection = m_bidiServer->connection(sessionID);
+        m_bidiServer->disconnectSession(sessionID);
         if (connection)
             clientDisconnected(*connection);
     }

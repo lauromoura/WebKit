@@ -30,6 +30,7 @@
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/JSONValues.h>
+#include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/text/StringHash.h>
 
 #if ENABLE(WEBDRIVER_BIDI)
@@ -43,13 +44,17 @@ class CommandResult;
 class Session;
 
 class WebDriverService final : public HTTPRequestHandler
+    , public WTF::RefCounted<WebDriverService>
 #if ENABLE(WEBDRIVER_BIDI)
     , public WebSocketMessageHandler
 #endif
 {
 public:
-    WebDriverService();
     ~WebDriverService();
+    static Ref<WebDriverService> create();
+
+    void ref() const final { RefCounted::ref(); }
+    void deref() const final { RefCounted::deref(); }
 
     int run(int argc, char** argv);
 
@@ -59,6 +64,7 @@ public:
     RefPtr<Session> session() const { return m_session; }
 
 private:
+    WebDriverService();
     enum class HTTPMethod { Get, Post, Delete };
     typedef void (WebDriverService::*CommandHandler)(RefPtr<JSON::Object>&&, Function<void (CommandResult&&)>&&);
     struct Command {
@@ -174,9 +180,9 @@ private:
     static bool findBidiCommand(RefPtr<JSON::Value>&, BidiCommandHandler*, unsigned& id, RefPtr<JSON::Object>& parsedParams);
 #endif // ENABLE(WEBDRIVER_BIDI)
 
-    HTTPServer m_server;
+    Ref<HTTPServer> m_server;
 #if ENABLE(WEBDRIVER_BIDI)
-    WebSocketServer m_bidiServer;
+    Ref<WebSocketServer> m_bidiServer;
     SessionHost::BrowserTerminatedObserver m_browserTerminatedObserver;
 #endif
     RefPtr<Session> m_session;
