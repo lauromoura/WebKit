@@ -33,4 +33,9 @@ HTTPServer::HTTPServer(HTTPRequestHandler& requestHandler)
 {
 }
 
+Ref<HTTPServer> HTTPServer::create(HTTPRequestHandler& handler)
+{
+    return adoptRef(*new HTTPServer(handler));
+}
+
 } // namespace WebDriver

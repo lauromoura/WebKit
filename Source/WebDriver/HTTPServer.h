@@ -25,7 +25,9 @@
 
 #pragma once
 
+#include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/Forward.h>
+#include <wtf/RefCounted.h>
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
@@ -44,8 +46,9 @@ using Inspector::RemoteInspectorSocketEndpoint;
 namespace WebDriver {
 
 class HTTPRequestHandler
+: public AbstractRefCountedAndCanMakeWeakPtr<HTTPRequestHandler>
 #if USE(INSPECTOR_SOCKET_SERVER)
-: public RemoteInspectorSocketEndpoint::Client
+, public RemoteInspectorSocketEndpoint::Client
 #endif
 {
 public:
@@ -81,13 +84,14 @@ private:
 };
 
 class HTTPServer
+: public RefCounted<HTTPServer>
 #if USE(INSPECTOR_SOCKET_SERVER)
-: public RemoteInspectorSocketEndpoint::Listener
+, public RemoteInspectorSocketEndpoint::Listener
 #endif
 {
 public:
-    explicit HTTPServer(HTTPRequestHandler&);
-    ~HTTPServer() = default;
+    virtual ~HTTPServer() = default;
+    static Ref<HTTPServer> create(HTTPRequestHandler&);
 
     bool listen(const std::optional<String>& host, unsigned port);
     void disconnect();
@@ -95,12 +99,13 @@ public:
     const String& visibleHost() const { return m_visibleHost; }
 
 private:
+    explicit HTTPServer(HTTPRequestHandler&);
 #if USE(INSPECTOR_SOCKET_SERVER)
     std::optional<ConnectionID> doAccept(RemoteInspectorSocketEndpoint&, PlatformSocketType) final;
     void didChangeStatus(RemoteInspectorSocketEndpoint&, ConnectionID, RemoteInspectorSocketEndpoint::Listener::Status) final;
 #endif
 
-    HTTPRequestHandler& m_requestHandler;
+    WeakRef<HTTPRequestHandler> m_requestHandler;
     String m_visibleHost;
 
 #if USE(SOUP)
