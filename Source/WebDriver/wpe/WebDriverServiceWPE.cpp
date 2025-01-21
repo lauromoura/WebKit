@@ -28,7 +28,9 @@
 
 #include "Capabilities.h"
 #include "CommandResult.h"
+#include <glib-unix.h>
 #include <wtf/JSONValues.h>
+#include <wtf/RunLoop.h>
 #include <wtf/text/StringToIntegerConversion.h>
 
 namespace WebDriver {
@@ -158,6 +160,18 @@ void WebDriverService::platformParseCapabilities(const JSON::Object& matchedCapa
             capabilities.targetPort = parseIntegerAllowingTrailingJunk<uint16_t>(StringView { targetString }.substring(position + 1)).value_or(0);
         }
     }
+}
+
+static int onQuitSignal(gpointer)
+{
+    RunLoop::protectedMain()->stop();
+    return G_SOURCE_REMOVE;
+}
+
+void WebDriverService::platformWillStartMainLoop()
+{
+    g_unix_signal_add(SIGINT, G_SOURCE_FUNC(onQuitSignal), nullptr);
+    g_unix_signal_add(SIGTERM, G_SOURCE_FUNC(onQuitSignal), nullptr);
 }
 
 } // namespace WebDriver

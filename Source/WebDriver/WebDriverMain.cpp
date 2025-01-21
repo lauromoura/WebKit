@@ -50,6 +50,6 @@ int main(int argc, char** argv)
     WebDriver::logChannels().initializeLogChannelsIfNecessary(WebDriver::logLevelString());
 #endif
 
-    WebDriver::WebDriverService service;
-    return service.run(argc, argv);
+    auto service = WebDriver::WebDriverService::create();
+    return service->run(argc, argv);
 }

@@ -80,4 +80,8 @@ bool WebDriverService::platformSupportBidi() const
     return false;
 }
 
+void WebDriverService::platformWillStartMainLoop()
+{
+}
+
 } // namespace WebDriver

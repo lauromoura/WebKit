@@ -30,7 +30,9 @@
 #include "HTTPServer.h"
 #include "Logging.h"
 #include <cstdio>
+#include <glib-object.h>
 #include <libsoup/soup-websocket-connection.h>
+#include <libsoup/soup-websocket.h>
 #include <libsoup/soup.h>
 #include <optional>
 #include <span>
@@ -77,7 +79,7 @@ static void handleIncomingHandshake(SoupServer*, SoupServerMessage* message, con
     };
 
     auto* webSocketServer = static_cast<WebSocketServer*>(userData);
-    if (webSocketServer->messageHandler().acceptHandshake(WTFMove(handshakeMessage))) // Follow with handshake procedure
+    if (webSocketServer && webSocketServer->messageHandler()->acceptHandshake(WTFMove(handshakeMessage))) // Follow with handshake procedure
         return;
 
     HTTPRequestHandler::Response errorResponse = { 503, "Service Unavailable", "text/plain"_s };
@@ -94,7 +96,7 @@ static void handleWebSocketMessage(SoupWebsocketConnection* connection, SoupWebs
 {
     // https://w3c.github.io/webdriver-bidi/#handle-an-incoming-message
     if (messageType != SOUP_WEBSOCKET_DATA_TEXT) {
-        RELEASE_LOG(WebDriverBiDi, "websocket message handler received non-text message. error return");
+        RELEASE_LOG_ERROR(WebDriverBiDi, "websocket message handler received non-text message. error return");
         auto errorReply = WebSocketMessageHandler::Message::fail(CommandResult::ErrorCode::InvalidArgument, std::nullopt, { "Non-text message received"_s });
         GRefPtr<GBytes> rawMessage = adoptGRef(g_bytes_new(errorReply.payload.data(), errorReply.payload.length()));
         soup_websocket_connection_send_message(connection, SOUP_WEBSOCKET_DATA_TEXT, rawMessage.get());
@@ -105,9 +107,9 @@ static void handleWebSocketMessage(SoupWebsocketConnection* connection, SoupWebs
     gsize messageSize;
     gconstpointer messageData = g_bytes_get_data(message, &messageSize);
     WebSocketMessageHandler::Message messageObj = { connection, { std::span<const char>(static_cast<const char*>(messageData), messageSize) } };
-    webSocketServer->messageHandler().handleMessage(WTFMove(messageObj), [](WebSocketMessageHandler::Message&& message) {
+    webSocketServer->messageHandler()->handleMessage(WTFMove(messageObj), [](WebSocketMessageHandler::Message&& message) {
         if (!message.connection) {
-            RELEASE_LOG(WebDriverBiDi, "No connection found when trying to send message: %s", message.payload.data());
+            RELEASE_LOG_ERROR(WebDriverBiDi, "No connection found when trying to send message: %s", message.payload.data());
             return;
         }
         GRefPtr<GBytes> rawMessage = adoptGRef(g_bytes_new(message.payload.data(), message.payload.length()));
@@ -130,7 +132,7 @@ static void handleWebSocketConnection(SoupServer*, SoupServerMessage*, const cha
 
     g_signal_connect(connection, "closed", G_CALLBACK(+[](SoupWebsocketConnection* connection, gpointer userData) {
         auto webSocketServer = static_cast<WebSocketServer*>(userData);
-        webSocketServer->messageHandler().clientDisconnected(connection);
+        webSocketServer->messageHandler()->clientDisconnected(connection);
     }), webSocketServer);
 
     g_signal_connect(connection, "message", G_CALLBACK(handleWebSocketMessage), webSocketServer);
@@ -192,6 +194,16 @@ void WebSocketServer::disconnect()
 #if USE(SOUP2)
     RELEASE_LOG(WebDriverBiDi, "WebSockets support not implemented yet with libsoup2");
 #else
+    if (!m_soupServer)
+        return;
+
+    for (const auto& connection : m_connectionToSession.keys()) {
+        if (!connection)
+            continue;
+
+        g_signal_handlers_disconnect_by_data(connection.get(), this);
+    }
+
     soup_server_disconnect(m_soupServer.get());
     m_soupServer = nullptr;
 #endif
@@ -204,9 +216,10 @@ void WebSocketServer::disconnectSession(const String& sessionId)
     RELEASE_LOG(WebDriverBiDi, "WebSockets support not implemented yet with libsoup2");
 #else
     auto connection = this->connection(sessionId);
-    if (!connection)
+    if (!connection || !connection->get())
         return;
 
+    g_signal_handlers_disconnect_by_data(connection->get(), this);
     soup_websocket_connection_close(connection->get(), SOUP_WEBSOCKET_CLOSE_NORMAL, nullptr);
 #endif
 }
