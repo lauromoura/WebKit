@@ -281,8 +281,9 @@ const WebDriverService::Command WebDriverService::s_commands[] = {
 
 #if ENABLE(WEBDRIVER_BIDI)
 const WebDriverService::BidiCommand WebDriverService::s_bidiCommands[] = {
-    { "session.status"_s, &WebDriverService::bidiSessionStatus },
+    { "browsingContext.getTree"_s, &WebDriverService::bidiBrowsingContextGetTree },
     { "session.subscribe"_s, &WebDriverService::bidiSessionSubscribe },
+    { "session.status"_s, &WebDriverService::bidiSessionStatus },
     { "session.unsubscribe"_s, &WebDriverService::bidiSessionUnsubscribe },
 };
 #endif
@@ -2746,6 +2747,22 @@ void WebDriverService::bidiSessionUnsubscribe(unsigned id, RefPtr<JSON::Object>&
     }
 
     completionHandler(WebSocketMessageHandler::Message::reply("success"_s, id, JSON::Value::null()));
+}
+
+void WebDriverService:: bidiBrowsingContextGetTree(unsigned id, RefPtr<JSON::Object>&& parameters, Function<void (WebSocketMessageHandler::Message&&)>&& completionHandler)
+{
+    // - 1. Let root id be the value of the root field of command parameters if present, or null otherwise.
+    // - 2. Let max depth be the value of the maxDepth field of command parameters if present, or null otherwise.
+    // - 3. Let navigables be an empty list.
+    // - 4. If root id is not null, append the result of trying to `get a navigable` given root id to navigables.
+    //     - Otherwise append all `top-level traversables` to navigables.
+    // - 5. Let navigables infos be an empty list.
+    // - 6. For each navigable of navigables:
+    //     - 1. Let info be the result of get the navigable info given navigable, max depth, and true.
+    //     - 2. Append info to navigables infos
+    // - 7. Let body be a map matching the browsingContext.GetTreeResult production, with the contexts field set to navigables infos.
+    // - 8. Return success with data body.
+    completionHandler(WebSocketMessageHandler::Message::fail(CommandResult::ErrorCode::UnknownCommand, std::nullopt, "Not implemented"_s, id));
 }
 
 void WebDriverService::clientDisconnected(const WebSocketMessageHandler::Connection& connection)
