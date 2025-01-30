@@ -26,6 +26,7 @@
 #include "config.h"
 #include "SessionHost.h"
 
+#include "Logging.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Observer.h>
 #include <wtf/WeakHashSet.h>
@@ -71,6 +72,7 @@ long SessionHost::sendCommandToBackend(const String& command, RefPtr<JSON::Objec
     if (parameters)
         messageBuilder.append(",\"params\":"_s, parameters->toJSONString());
     messageBuilder.append('}');
+    RELEASE_LOG(SessionHost, "Sending message to backend: %s", messageBuilder.toString().utf8().data());
     sendMessageToBackend(messageBuilder.toString());
 
     return sequenceID;
