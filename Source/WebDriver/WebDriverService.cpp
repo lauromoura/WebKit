@@ -475,14 +475,17 @@ void WebDriverService::handleMessage(WebSocketMessageHandler::Message&& message,
     if (!findBidiCommand(parsedMessageValue, &handler, id, parameters)) {
         RELEASE_LOG(WebDriverBiDi, "Failed to find appropriate BiDi command");
         std::optional<int> commandId;
+        String method;
         if (auto parsedMessageObject = parsedMessageValue->asObject()) {
             auto parsedCommandId = parsedMessageObject->getInteger("id"_s);
             if (parsedCommandId && *parsedCommandId >= 0)
                 commandId = parsedCommandId;
+            method = parsedMessageObject->getString("method"_s);
         }
 
         auto errorCode = CommandResult::ErrorCode::UnknownCommand;
-        auto errorReply = WebSocketMessageHandler::Message::fail(errorCode, connection, { "Command not supported"_s }, commandId);
+        String errorMessage = makeString("Unknown command: "_s, method);
+        auto errorReply = WebSocketMessageHandler::Message::fail(errorCode, connection, { errorMessage }, commandId);
         completionHandler(WTFMove(errorReply));
         return;
     }
@@ -517,8 +520,10 @@ bool WebDriverService::findBidiCommand(RefPtr<JSON::Value>& parameters, BidiComm
             return method == command.method;
     });
 
-    if (candidate == std::end(s_bidiCommands))
+    if (candidate == std::end(s_bidiCommands)) {
+        RELEASE_LOG(WebDriverBiDi, "No BiDi command found for method %s", method.utf8().data());
         return false;
+    }
 
     id = *idOpt;
     parsedParams = asObject->getObject("params"_s);
