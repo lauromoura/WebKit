@@ -2752,17 +2752,50 @@ void WebDriverService::bidiSessionUnsubscribe(unsigned id, RefPtr<JSON::Object>&
 void WebDriverService:: bidiBrowsingContextGetTree(unsigned id, RefPtr<JSON::Object>&& parameters, Function<void (WebSocketMessageHandler::Message&&)>&& completionHandler)
 {
     // - 1. Let root id be the value of the root field of command parameters if present, or null otherwise.
+    String rootID = parameters->getString("root"_s);
     // - 2. Let max depth be the value of the maxDepth field of command parameters if present, or null otherwise.
+    std::optional<int> maxDepth = parameters->getInteger("maxDepth"_s);
+
     // - 3. Let navigables be an empty list.
+    Vector<Navigable> navigables;
+
+    // Common epilogue of the `getTree` algorithm, so we can call it from the multiple async paths.
+    auto fillNavigableInfo = [id, maxDepth, completionHandler=WTFMove(completionHandler)](const Vector<Navigable>& navigables) {
+        // - 5. Let navigables infos be an empty list.
+        Vector<NavigableInfo> navigablesInfos;
+        // - 6. For each navigable of navigables:
+        for (auto& navigable : navigables) {
+            //     - 1. Let info be the result of get the navigable info given navigable, max depth, and true.
+            NavigableInfo info;
+            info.browsingContext = navigable.id;
+            //     - 2. Append info to navigables infos
+            navigablesInfos.append(info);
+        }
+        // - 7. Let body be a map matching the browsingContext.GetTreeResult production, with the contexts field set to navigables infos.
+        auto result = JSON::Object::create();
+        auto contexts = JSON::Array::create();
+        for (auto& navigableInfo : navigablesInfos)
+            contexts->pushObject(navigableInfo.toJSON());
+        result->setArray("contexts"_s, contexts);
+        completionHandler(WebSocketMessageHandler::Message::reply("success"_s, id, result));
+        // - 8. Return success with data body.
+        // completionHandler(WebSocketMessageHandler::Message::fail(CommandResult::ErrorCode::UnknownCommand, std::nullopt, "Not implemented"_s, id));
+    };
+
+    // Async split time
     // - 4. If root id is not null, append the result of trying to `get a navigable` given root id to navigables.
+    if (!rootID.isEmpty()) {
+        // FIXME properly get the navigable info given root id?
+        navigables.append(Navigable { rootID, { }});
+        fillNavigableInfo(navigables);
+    }
     //     - Otherwise append all `top-level traversables` to navigables.
-    // - 5. Let navigables infos be an empty list.
-    // - 6. For each navigable of navigables:
-    //     - 1. Let info be the result of get the navigable info given navigable, max depth, and true.
-    //     - 2. Append info to navigables infos
-    // - 7. Let body be a map matching the browsingContext.GetTreeResult production, with the contexts field set to navigables infos.
-    // - 8. Return success with data body.
-    completionHandler(WebSocketMessageHandler::Message::fail(CommandResult::ErrorCode::UnknownCommand, std::nullopt, "Not implemented"_s, id));
+    else {
+        // FIXME Will this return all top-level browsing contexts or include iframes?
+        m_session->getAllTopLevelBrowsingContexts([fillNavigableInfo=WTFMove(fillNavigableInfo)](Vector<Navigable>&& topLevelNavigables) {
+            fillNavigableInfo(topLevelNavigables);
+        });
+    }
 }
 
 void WebDriverService::clientDisconnected(const WebSocketMessageHandler::Connection& connection)

@@ -33,6 +33,7 @@
 #include "APIOpenPanelParameters.h"
 #include "APIString.h"
 #include "AutomationProtocolObjects.h"
+#include "Logging.h"
 #include "CoordinateSystem.h"
 #include "PageLoadState.h"
 #include "WebAutomationSessionMacros.h"
@@ -365,6 +366,7 @@ Ref<Inspector::Protocol::Automation::BrowsingContext> WebAutomationSession::buil
 void WebAutomationSession::getNextContext(Ref<WebAutomationSession>&& protectedThis, Vector<Ref<WebPageProxy>>&& pages, Ref<JSON::ArrayOf<Inspector::Protocol::Automation::BrowsingContext>> contexts, Ref<WebAutomationSession::GetBrowsingContextsCallback>&& callback)
 {
     if (pages.isEmpty()) {
+        RELEASE_LOG(Automation, "WebAutomationSession::getNextContext: Returning %zu browsing contexts.", contexts->length());
         callback->sendSuccess(WTFMove(contexts));
         return;
     }

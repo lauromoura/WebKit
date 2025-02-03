@@ -2194,7 +2194,7 @@
         "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
     },
     "imported/w3c/webdriver/tests/bidi/log/entry_added/console.py": {
-        "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
+        "expected": { "all": { "status": ["PASS"], "bug": "webkit.org/b/283784"}}
     },
     "imported/w3c/webdriver/tests/bidi/log/entry_added/event_buffer.py": {
         "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/286790"}}

@@ -18,7 +18,7 @@ set(WebDriver_SOURCES
 )
 
 if (ENABLE_WEBDRIVER_BIDI)
-    list(APPEND WebDriver_SOURCES WebSocketServer.cpp)
+    list(APPEND WebDriver_SOURCES WebSocketServer.cpp WebDriverBiDiTypes.cpp)
 endif ()
 
 set(WebDriver_FRAMEWORKS

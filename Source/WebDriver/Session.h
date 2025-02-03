@@ -40,6 +40,7 @@
 
 #if ENABLE(WEBDRIVER_BIDI)
 #include "WebSocketServer.h"
+#include "WebDriverBiDiTypes.h"
 #endif
 
 namespace WebDriver {
@@ -160,6 +161,7 @@ public:
     void enableGlobalEvent(const String&);
     void disableGlobalEvent(const String&);
     void dispatchEvent(RefPtr<JSON::Object>&&);
+    void getAllTopLevelBrowsingContexts(Function<void(Vector<Navigable>&&)>&&);
 #endif
 
 private:

@@ -27,6 +27,7 @@
 
 #include "HTTPServer.h"
 #include "Session.h"
+#include "WebDriverBiDiTypes.h"
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/JSONValues.h>

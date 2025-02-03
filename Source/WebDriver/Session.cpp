@@ -27,8 +27,11 @@
 #include "Session.h"
 
 #include "CommandResult.h"
+#include "Logging.h"
 #include "SessionHost.h"
 #include "WebDriverAtoms.h"
+#include "WebDriverBiDiTypes.h"
+#include "wtf/CompletionHandler.h"
 #include <wtf/ASCIICType.h>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/FileSystem.h>
@@ -3287,6 +3290,57 @@ String Session::toInternalEventName(const String& eventName)
 
     return builder.toString();
 }
-#endif
+
+void Session::getAllTopLevelBrowsingContexts(Function<void(Vector<Navigable>&&)>&& completionHandler)
+{
+    RELEASE_LOG(WebDriverBiDi, "Session::getAllTopLevelBrowsingContexts called.");
+    // call getBrowsingContexts
+    m_host->sendCommandToBackend("getBrowsingContexts"_s, JSON::Object::create(), [protectedThis = Ref { *this }, completionHandler=WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
+        if (response.isError || !response.responseObject) {
+            RELEASE_LOG(WebDriverBiDi, "Session::getAllTopLevelBrowsingContexts failed.");
+            // FIXME We need to be able to bubble the error up, as the callback currently accepts an empty array.
+            completionHandler({});
+            return;
+        }
+
+        {
+            String responseString = response.responseObject->toJSONString();
+            RELEASE_LOG(WebDriverBiDi, "Session::getAllTopLevelBrowsingContexts response: %s", responseString.utf8().data());
+        }
+
+        auto browsingContextArray = response.responseObject->getArray("contexts"_s);
+        if (!browsingContextArray) {
+            // Ditto
+            RELEASE_LOG(WebDriverBiDi, "Session::getAllTopLevelBrowsingContexts failed to get browsingContexts array.");
+            completionHandler({});
+            return;
+        }
+        RELEASE_LOG(WebDriverBiDi, "Session::getAllTopLevelBrowsingContexts found %u browsing contexts.", browsingContextArray->length());
+        Vector<Navigable> windowHandles;
+        for (unsigned i = 0; i < browsingContextArray->length(); ++i) {
+            auto browsingContext = browsingContextArray->get(i)->asObject();
+            if (!browsingContext) {
+                // Ditto.
+                completionHandler({});
+                return;
+            }
+
+            auto handle = browsingContext->getString("handle"_s);
+            if (!handle) {
+                // Ditto.
+                completionHandler({});
+                return;
+            }
+
+            Navigable navigable;
+            navigable.id = handle;
+            // FIXME parent?
+            windowHandles.append(WTFMove(navigable));
+        }
+        completionHandler(WTFMove(windowHandles));
+    });
+}
+
+#endif // ENABLE(WEBDRIVER_BIDI)
 
 } // namespace WebDriver
