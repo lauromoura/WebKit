@@ -140,7 +140,7 @@ private:
     void takeElementScreenshot(RefPtr<JSON::Object>&&, Function<void (CommandResult&&)>&&);
 
 #if ENABLE(WEBDRIVER_BIDI)
-    // BiDi message handlers
+    // BiDi message handlers for methods that require some work on the driver side, without relaying direclty to the browser
     void bidiSessionStatus(unsigned id, RefPtr<JSON::Object>&&, Function<void (WebSocketMessageHandler::Message&&)>&&);
     void bidiSessionSubscribe(unsigned id, RefPtr<JSON::Object>&&, Function<void (WebSocketMessageHandler::Message&&)>&&);
     void bidiSessionUnsubscribe(unsigned id, RefPtr<JSON::Object>&&, Function<void (WebSocketMessageHandler::Message&&)>&&);
@@ -177,7 +177,7 @@ private:
         BidiCommandHandler handler;
     };
     static const BidiCommand s_bidiCommands[];
-    static bool findBidiCommand(RefPtr<JSON::Value>&, BidiCommandHandler*, unsigned& id, RefPtr<JSON::Object>& parsedParams);
+    static bool findBidiCommand(const RefPtr<JSON::Object>&, BidiCommandHandler*, RefPtr<JSON::Object>& parsedParams);
 #endif // ENABLE(WEBDRIVER_BIDI)
 
     Ref<HTTPServer> m_server;

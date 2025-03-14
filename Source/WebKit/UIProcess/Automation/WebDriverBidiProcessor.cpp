@@ -38,6 +38,7 @@
 #include "WebDriverBidiProtocolObjects.h"
 #include <JavaScriptCore/InspectorBackendDispatcher.h>
 #include <JavaScriptCore/InspectorFrontendRouter.h>
+#include <wtf/JSONValues.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/WeakPtr.h>
 
@@ -134,6 +135,12 @@ Inspector::Protocol::ErrorStringOr<void> WebDriverBidiProcessor::close()
     session->terminate();
 
     return { };
+}
+
+Inspector::CommandResult<Ref<JSON::ArrayOf<Inspector::Protocol::BidiBrowsingContext::Info>>> WebDriverBidiProcessor::getTree()
+{
+    RELEASE_LOG(Automation, "WebDriverBidiProcessor::getTree");
+    return JSON::ArrayOf<Inspector::Protocol::BidiBrowsingContext::Info>::create();
 }
 
 void WebDriverBidiProcessor::logEntryAdded(const String& level, const String& source, const String& message, double timestamp, const String& type, const String& method)

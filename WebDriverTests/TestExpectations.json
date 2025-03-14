@@ -21,7 +21,7 @@
                 "expected": {"wpe": {"status": ["SKIP"], "note": "Related to setWindowRect, but Wayland does not allow setting client position"}}
             },
             "test_change_window_size": {
-                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/279100"}}
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/279100"}}
             }
         }
     },

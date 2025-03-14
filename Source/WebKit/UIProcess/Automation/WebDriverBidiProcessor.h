@@ -57,6 +57,7 @@ public:
 
     // Inspector::BidiBrowsingContextDispatcherHandler methods.
     void navigate(const Inspector::Protocol::BidiBrowsingContext::BrowsingContext&, const String& url, std::optional<Inspector::Protocol::BidiBrowsingContext::ReadinessState>&&, Inspector::CommandCallbackOf<String, String>&&) override;
+    Inspector::CommandResult<Ref<JSON::ArrayOf<Inspector::Protocol::BidiBrowsingContext::Info>>> getTree() override;
 
     // Inspector::BidiBrowserBackendDispatcherHandler methods.
     Inspector::Protocol::ErrorStringOr<void> close() override;

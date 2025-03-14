@@ -27,6 +27,7 @@
 #include "Session.h"
 
 #include "CommandResult.h"
+#include "Logging.h"
 #include "SessionHost.h"
 #include "WebDriverAtoms.h"
 #include <wtf/ASCIICType.h>
@@ -84,7 +85,7 @@ Session::Session(Ref<SessionHost>&& host, WeakPtr<WebSocketServer>&& bidiServer)
     : Session(WTFMove(host))
 {
     m_bidiServer = WTFMove(bidiServer);
-    m_host->addEventHandler(this);
+    m_host->addBiDiHandler(this);
 }
 #endif
 
@@ -3152,21 +3153,19 @@ void Session::takeScreenshot(std::optional<String> elementID, std::optional<bool
 }
 
 #if ENABLE(WEBDRIVER_BIDI)
-void Session::dispatchEvent(RefPtr<JSON::Object>&& message)
+void Session::dispatchBiDiMessage(RefPtr<JSON::Object>&& message)
 {
     static String automationPrefix = "Automation."_s;
     auto method = message->getString("method"_s);
     if (!method.startsWith(automationPrefix)) {
-        WTFLogAlways("Unknown event domain: %s", method.utf8().data());
+        RELEASE_LOG(WebDriverBiDi, "Unknown event domain: %s", method.utf8().data());
         return;
     }
 
-    auto eventName = method.substring(automationPrefix.length());
-    if (!m_globalEventSet.contains(eventName))
-        return;
-
-    if (eventName == "logEntryAdded"_s) {
-        doLogEntryAdded(WTFMove(message));
+    // Messages that come almost ready from the browser
+    auto messageName = method.substring(automationPrefix.length());
+    if (messageName == "bidiMessageSent"_s) {
+        doBidiMessageSent(WTFMove(message));
         return;
     }
 }
@@ -3176,7 +3175,7 @@ void Session::doLogEntryAdded(RefPtr<JSON::Object>&& message)
     // https://w3c.github.io/webdriver-bidi/#event-log-entryAdded
     auto params = message->getObject("params"_s);
     if (!params) {
-        WTFLogAlways("Log event without parameter information, ignoring.");
+        RELEASE_LOG(WebDriverBiDi, "Log event without parameter information, ignoring.");
         return;
     }
 
@@ -3235,8 +3234,8 @@ void Session::doLogEntryAdded(RefPtr<JSON::Object>&& message)
     auto body = JSON::Object::create();
     body->setObject("params"_s, WTFMove(entry));
 
-    if (eventIsEnabled("logEntryAdded"_s, { m_toplevelBrowsingContext.value() }))
-        emitEvent("log.entryAdded"_s, WTFMove(body));
+    emitEvent("log.entryAdded"_s, WTFMove(body));
+
     // TODO Implement event buffering, to save the log entries for later emission when the user subscribes to it
     // https://bugs.webkit.org/show_bug.cgi?id=282980
 }
@@ -3261,35 +3260,80 @@ bool Session::eventIsEnabled(const String& eventName, const Vector<String>&)
 
 void Session::enableGlobalEvent(const String& eventName)
 {
-    m_globalEventSet.add(toInternalEventName(eventName));
+    m_globalEventSet.add(eventName);
 }
 
 void Session::disableGlobalEvent(const String& eventName)
 {
-    m_globalEventSet.remove(toInternalEventName(eventName));
+    m_globalEventSet.remove(eventName);
 }
 
-String Session::toInternalEventName(const String& eventName)
+void Session::relayBidiCommand(const String& message, unsigned commandId, Function<void(WebSocketMessageHandler::Message&&)>&& completionHandler)
 {
-    // The messages exchanged with the Browser (see Automation.json) can't have
-    // periods in the message name.
-    StringBuilder builder;
-    bool capitalizeNext = false;
-    for (unsigned i = 0; i < eventName.length(); i++) {
-        if (eventName[i] == '.') {
-            capitalizeNext = true;
-            continue;
+    auto parameters = JSON::Object::create();
+    parameters->setString("message"_s, message);
+    m_relayedCommands.set(commandId, WTFMove(completionHandler));
+    m_host->sendCommandToBackend("processBidiMessage"_s, WTFMove(parameters), [protectedThis = Ref { *this }, commandId](SessionHost::CommandResponse&& response) {
+        if (response.isError) {
+            auto errorCode = CommandResult::ErrorCode::UnknownError;
+            auto callback = protectedThis->m_relayedCommands.take(commandId);
+            if (callback)
+                callback(WebSocketMessageHandler::Message::fail(errorCode, std::nullopt, "Unknown error"_s, { commandId }));
         }
+    });
+}
 
-        if (capitalizeNext) {
-            builder.append(toASCIIUpper(eventName[i]));
-            capitalizeNext = false;
-        } else
-            builder.append(eventName[i]);
+void Session::doBidiMessageSent(RefPtr<JSON::Object>&& message)
+{
+    auto params = message->getObject("params"_s);
+    if (!params) {
+        RELEASE_LOG(WebDriverBiDi, "Bidi message without parameter information, ignoring.");
+        return;
     }
 
-    return builder.toString();
+    auto bidiMessageString = params->getString("message"_s);
+    if (!bidiMessageString) {
+        RELEASE_LOG(WebDriverBiDi, "Bidi message without message information, ignoring.");
+        return;
+    }
+
+    auto bidiMessageValue = JSON::Value::parseJSON(bidiMessageString);
+    if (!bidiMessageValue) {
+        RELEASE_LOG(WebDriverBiDi, "Bidi message with invalid JSON, ignoring.");
+        return;
+    }
+
+    auto bidiMessage = bidiMessageValue->asObject();
+
+    auto method = bidiMessage->getString("method"_s);
+    if (!!method)
+        bidiMessage->setString("type"_s, "event"_s);
+    else if (auto error = bidiMessage->getObject("error"_s))
+        bidiMessage->setString("type"_s, "error"_s);
+    else
+        bidiMessage->setString("type"_s, "success"_s);
+
+    auto commandId = bidiMessage->getInteger("id"_s);
+    if (!commandId) {
+        if (!eventIsEnabled(method, { m_toplevelBrowsingContext.value() })) {
+            RELEASE_LOG(WebDriverBiDi, "Message %s is an unknown event or not enabled, ignoring.", method.utf8().data());
+            return;
+        }
+
+        if (method == "log.entryAdded"_s)
+            doLogEntryAdded(WTFMove(bidiMessage));
+        return;
+    }
+
+    auto completionHandler = m_relayedCommands.take(*commandId);
+    if (!completionHandler) {
+        RELEASE_LOG(WebDriverBiDi, "No completion handler found for reply to command id %u, ignoring message.", *commandId);
+        return;
+    }
+
+    completionHandler({ nullptr, bidiMessage->toJSONString().utf8() });
 }
-#endif
+
+#endif // ENABLE(WEBDRIVER_BIDI)
 
 } // namespace WebDriver

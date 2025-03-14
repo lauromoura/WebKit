@@ -2663,7 +2663,6 @@ void WebAutomationSession::logEntryAdded(const JSC::MessageSource& messageSource
 
     // FIXME Get browsing context handle and source info
     // https://bugs.webkit.org/show_bug.cgi?id=282981
-    m_domainNotifier->logEntryAdded(level, sourceString, messageText, milliseconds, type, method);
 #if ENABLE(WEBDRIVER_BIDI)
     m_bidiProcessor->logEntryAdded(level, sourceString, messageText, milliseconds, type, method);
 #endif

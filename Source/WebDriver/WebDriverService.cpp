@@ -480,25 +480,32 @@ void WebDriverService::handleMessage(WebSocketMessageHandler::Message&& message,
         return;
     }
 
-    BidiCommandHandler handler;
-    unsigned id = 0;
-    RefPtr<JSON::Object> parameters;
-    if (!findBidiCommand(parsedMessageValue, &handler, id, parameters)) {
-        RELEASE_LOG(WebDriverBiDi, "Failed to find appropriate BiDi command");
-        std::optional<int> commandId;
-        if (auto parsedMessageObject = parsedMessageValue->asObject()) {
-            auto parsedCommandId = parsedMessageObject->getInteger("id"_s);
-            if (parsedCommandId && *parsedCommandId >= 0)
-                commandId = parsedCommandId;
-        }
-
-        auto errorCode = CommandResult::ErrorCode::UnknownCommand;
-        auto errorReply = WebSocketMessageHandler::Message::fail(errorCode, connection, { "Command not supported"_s }, commandId);
-        completionHandler(WTFMove(errorReply));
+    const auto& asObject = parsedMessageValue->asObject();
+    if (!asObject) {
+        RELEASE_LOG(WebDriverBiDi, "WebDriver handle BiDi message: Malformed message. ");
+        completionHandler(WebSocketMessageHandler::Message::fail(CommandResult::ErrorCode::InvalidArgument, connection));
         return;
     }
 
-    ((*this).*handler)(id, WTFMove(parameters), [completionHandler = WTFMove(completionHandler), message](WebSocketMessageHandler::Message&& resultMessage) {
+    std::optional<int> commandId = asObject->getInteger("id"_s);
+    if (!commandId) {
+        RELEASE_LOG(WebDriverBiDi, "Missing command ID.");
+        completionHandler(WebSocketMessageHandler::Message::fail(CommandResult::ErrorCode::InvalidArgument, connection));
+        return;
+    }
+
+    BidiCommandHandler handler;
+    RefPtr<JSON::Object> parameters;
+    if (!findBidiCommand(asObject, &handler, parameters)) {
+        RELEASE_LOG(WebDriverBiDi, "Failed to find appropriate BiDi command on WebDriver service. Relaying to the browser.");
+        m_session->relayBidiCommand(makeString(message.payload), *commandId, [completionHandler = WTFMove(completionHandler), message](WebSocketMessageHandler::Message&& resultMessage) {
+            resultMessage.connection = message.connection;
+            completionHandler(WTFMove(resultMessage));
+        });
+        return;
+    }
+
+    ((*this).*handler)(*commandId, WTFMove(parameters), [completionHandler = WTFMove(completionHandler), message](WebSocketMessageHandler::Message&& resultMessage) {
         // 6.7.5 If method is "session.new", let session be the entry in the list of active sessions whose session ID is equal to the "sessionId" property of value, append connection to session’s session WebSocket connections, and remove connection from the WebSocket connections not associated with a session.
         // FIXME https://bugs.webkit.org/show_bug.cgi?id=281722
         resultMessage.connection = message.connection;
@@ -506,20 +513,9 @@ void WebDriverService::handleMessage(WebSocketMessageHandler::Message&& message,
     });
 }
 
-bool WebDriverService::findBidiCommand(RefPtr<JSON::Value>& parameters, BidiCommandHandler* handler, unsigned& id, RefPtr<JSON::Object>& parsedParams)
+bool WebDriverService::findBidiCommand(const RefPtr<JSON::Object>& parameters, BidiCommandHandler* handler, RefPtr<JSON::Object>& parsedParams)
 {
-    if (!parameters)
-        return false;
-
-    const auto& asObject = parameters->asObject();
-    if (!asObject)
-        return false;
-
-    std::optional<int> idOpt = asObject->getInteger("id"_s);
-    if (!idOpt)
-        return false;
-
-    const String& method = asObject->getString("method"_s);
+    const String& method = parameters->getString("method"_s);
     if (!method)
         return false;
 
@@ -531,8 +527,7 @@ bool WebDriverService::findBidiCommand(RefPtr<JSON::Value>& parameters, BidiComm
     if (candidate == std::end(s_bidiCommands))
         return false;
 
-    id = *idOpt;
-    parsedParams = asObject->getObject("params"_s);
+    parsedParams = parameters->getObject("params"_s);
     *handler = candidate->handler;
     return true;
 }
@@ -2745,6 +2740,7 @@ void WebDriverService::bidiSessionSubscribe(unsigned id, RefPtr<JSON::Object>&&p
     // https://bugs.webkit.org/show_bug.cgi?id=282981
     for (auto& eventName : *eventNames) {
         auto event = eventName->asString();
+        RELEASE_LOG(WebDriverBiDi, "Subscribing globally to event %s", event.utf8().data());
         m_session->enableGlobalEvent(event);
     }
 

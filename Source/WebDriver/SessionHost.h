@@ -50,10 +50,10 @@ namespace WebDriver {
 struct ConnectToBrowserAsyncData;
 
 #if ENABLE(WEBDRIVER_BIDI)
-class BiDiEventHandler : public CanMakeWeakPtr<BiDiEventHandler>, public RefCounted<BiDiEventHandler> {
+class BiDiMessageHandler : public CanMakeWeakPtr<BiDiMessageHandler>, public RefCounted<BiDiMessageHandler> {
 public:
-    virtual ~BiDiEventHandler() = default;
-    virtual void dispatchEvent(RefPtr<JSON::Object>&&) = 0;
+    virtual ~BiDiMessageHandler() = default;
+    virtual void dispatchBiDiMessage(RefPtr<JSON::Object>&&) = 0;
 };
 #endif
 
@@ -97,7 +97,7 @@ public:
     long sendCommandToBackend(const String&, RefPtr<JSON::Object>&& parameters, Function<void (CommandResponse&&)>&&);
 
 #if ENABLE(WEBDRIVER_BIDI)
-    void addEventHandler(WeakPtr<BiDiEventHandler>&& handler) { m_eventHandler = WTFMove(handler); }
+    void addBiDiHandler(WeakPtr<BiDiMessageHandler>&& handler) { m_biDiHandler = WTFMove(handler); }
 #endif
 
 private:
@@ -117,7 +117,7 @@ private:
     void sendMessageToBackend(const String&);
     void dispatchMessage(const String&);
 #if ENABLE(WEBDRIVER_BIDI)
-    void dispatchEvent(RefPtr<JSON::Object>&&);
+    void dispatchBiDiMessage(RefPtr<JSON::Object>&&);
 #endif
 
 #if USE(GLIB)
@@ -153,7 +153,7 @@ private:
     HashMap<long, Function<void (CommandResponse&&)>> m_commandRequests;
 
 #if ENABLE(WEBDRIVER_BIDI)
-    WeakPtr<BiDiEventHandler> m_eventHandler;
+    WeakPtr<BiDiMessageHandler> m_biDiHandler;
 #endif
 
     String m_targetIp;

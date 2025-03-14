@@ -26,6 +26,7 @@
 #include "config.h"
 #include "SessionHost.h"
 
+#include "Logging.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Observer.h>
 #include <wtf/WeakHashSet.h>
@@ -89,12 +90,18 @@ void SessionHost::dispatchMessage(const String& message)
     auto sequenceID = messageObject->getInteger("id"_s);
     if (!sequenceID) {
 #if ENABLE(WEBDRIVER_BIDI)
-        dispatchEvent(WTFMove(messageObject));
+        // Automation::bidiMessageSent event is also used for non-event BiDi replies to
+        // commands
+        dispatchBiDiMessage(WTFMove(messageObject));
 #endif
         return;
     }
 
     auto responseHandler = m_commandRequests.take(*sequenceID);
+    if (!responseHandler) {
+        RELEASE_LOG_ERROR(SessionHost, "Received response for unknown request id %ld", *sequenceID);
+        return;
+    }
     ASSERT(responseHandler);
 
     CommandResponse response;
@@ -126,10 +133,13 @@ void SessionHost::removeBrowserTerminatedObserver(const BrowserTerminatedObserve
     browserTerminatedObservers().remove(observer);
 }
 
-void SessionHost::dispatchEvent(RefPtr<JSON::Object>&& event)
+void SessionHost::dispatchBiDiMessage(RefPtr<JSON::Object>&& event)
 {
-    if (m_eventHandler)
-        m_eventHandler->dispatchEvent(WTFMove(event));
+    RELEASE_LOG(SessionHost, "Dispatching bidi message %s", event->toJSONString().utf8().data());
+    if (m_biDiHandler)
+        m_biDiHandler->dispatchBiDiMessage(WTFMove(event));
+    else
+        RELEASE_LOG(SessionHost, "No event handler to dispatch event %s", event->toJSONString().utf8().data());
 }
 #endif
 
