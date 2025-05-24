@@ -2393,44 +2393,31 @@
             }
         }
     },
-    "imported/w3c/webdriver/tests/bidi/browsing_context/get_tree/max_depth.py": {
-        "subtests": {
-            "test_null": {
-                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
-            },
-            "test_top_level_only": {
-                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
-            },
-            "test_top_level_and_one_child": {
-                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
-            }
-        }
-    },
     "imported/w3c/webdriver/tests/bidi/browsing_context/get_tree/original_opener.py": {
         "subtests": {
             "test_window_open[None]": {
-                "expected": { "all": { "status": ["SKIP"], "bug": "webkit.org/b/283784"}}
+                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
             },
             "test_window_open[]": {
-                "expected": { "all": { "status": ["SKIP"], "bug": "webkit.org/b/283784"}}
+                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
             },
             "test_window_open[popup]": {
-                "expected": { "all": { "status": ["SKIP"], "bug": "webkit.org/b/283784"}}
+                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
             },
             "test_window_open[noopener]": {
-                "expected": { "all": { "status": ["SKIP"], "bug": "webkit.org/b/283784"}}
+                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
             },
             "test_window_open[noreferrer]": {
-                "expected": { "all": { "status": ["SKIP"], "bug": "webkit.org/b/283784"}}
+                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
             },
             "test_different_origins[same_origin]": {
-                "expected": { "all": { "status": ["SKIP"], "bug": "webkit.org/b/283784"}}
+                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
             },
             "test_different_origins[cross_origin]": {
-                "expected": { "all": { "status": ["SKIP"], "bug": "webkit.org/b/283784"}}
+                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
             },
             "test_with_closed_original_context": {
-                "expected": { "all": { "status": ["SKIP"], "bug": "webkit.org/b/283784"}}
+                "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}
             }
         },
         "expected": { "all": { "status": ["FAIL"], "bug": "webkit.org/b/283784"}}

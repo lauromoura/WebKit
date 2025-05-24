@@ -30,14 +30,19 @@
 #if ENABLE(WEBDRIVER_BIDI)
 
 #include "AutomationProtocolObjects.h"
+#include "FrameTreeNodeData.h"
 #include "Logging.h"
 #include "PageLoadState.h"
 #include "WebAutomationSession.h"
 #include "WebAutomationSessionMacros.h"
 #include "WebDriverBidiFrontendDispatchers.h"
 #include "WebDriverBidiProtocolObjects.h"
+#include "WebFrameProxy.h"
 #include "WebPageProxy.h"
 #include "WebProcessPool.h"
+#include <wtf/Ref.h>
+#include <wtf/Vector.h>
+#include <wtf/text/WTFString.h>
 
 namespace WebKit {
 
@@ -125,35 +130,109 @@ void BidiBrowsingContextAgent::create(Inspector::Protocol::BidiBrowsingContext::
     });
 }
 
+Protocol::BidiBrowsingContext::BrowsingContext BidiBrowsingContextAgent::getBrowsingContextID(const WebCore::FrameIdentifier& frameID) const
+{
+    if (RefPtr frame = WebFrameProxy::webFrame(frameID); frame && frame->isMainFrame()) {
+        if (auto page = frame->page())
+            return m_session->handleForWebPageProxy(*page);
+        return WTF::emptyString();
+    }
+    return m_session->handleForWebFrameID(frameID);
+}
+
+Ref<Protocol::BidiBrowsingContext::Info> BidiBrowsingContextAgent::getNavigableInfo(const WebKit::FrameTreeNodeData& tree, std::optional<unsigned> maxDepth, IncludeParentID includeParentID)
+{
+    // https://w3c.github.io/webdriver-bidi/#get-the-navigable-info
+
+    // FIXME: Properly support different user contexts, which will likely map to different WebAutomationSessions.
+    // https://bugs.webkit.org/show_bug.cgi?id=288104
+
+    // FIXME: Support originalOpener attribute.
+    // https://w3c.github.io/webdriver-bidi/#original-opener
+
+    RefPtr<JSON::ArrayOf<Inspector::Protocol::BidiBrowsingContext::Info>> childrenInfo;
+    if (!maxDepth || *maxDepth) {
+        childrenInfo = JSON::ArrayOf<Inspector::Protocol::BidiBrowsingContext::Info>::create();
+        auto newDepth = maxDepth ? std::optional<int>(*maxDepth - 1) : std::nullopt;
+        for (auto& child : tree.children)
+            childrenInfo->addItem(getNavigableInfo(child, newDepth, IncludeParentID::No));
+    }
+
+    auto info = Inspector::Protocol::BidiBrowsingContext::Info::create()
+        .setContext(getBrowsingContextID(tree.info.frameID))
+        .setUrl(tree.info.request.url().string())
+        .setClientWindow("placeholder_window"_s)
+        .setUserContext("default"_s)
+        .setChildren(WTFMove(childrenInfo))
+        .setOriginalOpener(std::nullopt)
+        .release();
+
+    if (includeParentID == IncludeParentID::Yes) {
+        if (tree.info.parentFrameID)
+            info->setParent(getBrowsingContextID(tree.info.parentFrameID.value()));
+        else
+            info->setNullParent();
+    }
+
+    return info;
+}
+
+// Recursively traverses the frame tree of the given pages, one page at a time.
+// We need such recursion because we need to wait for the frame tree of the current page to be fully processed before moving on to the next page.
+void BidiBrowsingContextAgent::getNextTree(Vector<Ref<WebPageProxy>>&& pages, Ref<JSON::ArrayOf<Protocol::BidiBrowsingContext::Info>> contexts, std::optional<unsigned> maxDepth, CommandCallback<Ref<JSON::ArrayOf<Protocol::BidiBrowsingContext::Info>>>&& callback)
+{
+    if (pages.isEmpty()) {
+        callback(WTFMove(contexts));
+        return;
+    }
+
+    Ref webPageProxy = pages.takeLast();
+    webPageProxy->getAllFrameTrees([this, pages = WTFMove(pages), contexts = WTFMove(contexts), callback = WTFMove(callback), maxDepth](Vector<WebKit::FrameTreeNodeData>&& trees) mutable {
+        for (auto& tree : trees) {
+            auto infoTree = getNavigableInfo(tree, maxDepth, IncludeParentID::Yes);
+            contexts->addItem(WTFMove(infoTree));
+        }
+        getNextTree(WTFMove(pages), WTFMove(contexts), maxDepth, WTFMove(callback));
+    });
+}
+
+std::optional<unsigned> toOptionalUint(const std::optional<double>& value)
+{
+    if (!value)
+        return std::nullopt;
+    if (value.value() < 0)
+        return std::nullopt;
+    if (std::floor(value.value()) != value.value())
+        return std::nullopt;
+    if (value.value() > std::numeric_limits<unsigned>::max())
+        return std::nullopt;
+    return std::optional<unsigned>(static_cast<unsigned>(value.value()));
+}
+
 void BidiBrowsingContextAgent::getTree(const BrowsingContext& optionalRoot, std::optional<double>&& optionalMaxDepth, CommandCallback<Ref<JSON::ArrayOf<Protocol::BidiBrowsingContext::Info>>>&& callback)
 {
+    // https://w3c.github.io/webdriver-bidi/#command-browsingContext-getTree
     RefPtr session = m_session.get();
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!session, InternalError);
 
-    // FIXME: implement `root` option.
-    // FIXME: implement `maxDepth` option.
+    Vector<Ref<WebPageProxy>> navigablePages;
 
-    auto infos = JSON::ArrayOf<Inspector::Protocol::BidiBrowsingContext::Info>::create();
     for (Ref process : session->protectedProcessPool()->processes()) {
         for (Ref page : process->pages()) {
             if (!page->isControlledByAutomation())
                 continue;
 
-            // FIXME: implement `parent` field.
-            // FIXME: implement `children` field.
-            // FIXME: implement `originalOpener` field.
-            // FIXME: implement `clientWindow` field.
-            // FIXME: implement `userContext` field.
-            infos->addItem(Inspector::Protocol::BidiBrowsingContext::Info::create()
-                .setContext(session->handleForWebPageProxy(page))
-                .setUrl(page->currentURL())
-                .setClientWindow("placeholder_window"_s)
-                .setUserContext("placeholder_context"_s)
-                .release());
+            if (!optionalRoot.isEmpty() && session->handleForWebPageProxy(page) != optionalRoot)
+                continue;
+
+            navigablePages.append(page);
         }
     }
 
-    callback({ { WTFMove(infos) } });
+    auto infos = JSON::ArrayOf<Inspector::Protocol::BidiBrowsingContext::Info>::create();
+    getNextTree(WTFMove(navigablePages), WTFMove(infos), toOptionalUint(optionalMaxDepth), [callback = WTFMove(callback)](auto&& result) {
+        callback({ { result.value() } });
+    });
 }
 
 void BidiBrowsingContextAgent::handleUserPrompt(const BrowsingContext& browsingContext, std::optional<bool>&& optionalShouldAccept, const String&, CommandCallback<void>&& callback)

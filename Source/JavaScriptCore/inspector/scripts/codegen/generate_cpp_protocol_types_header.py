@@ -266,6 +266,8 @@ class CppProtocolTypesHeaderGenerator(CppGenerator):
         for type_member in required_members:
             lines.append(self._generate_builder_setter_for_member(type_member, domain))
         lines.append(Template(CppTemplates.ProtocolObjectBuilderDeclarationPostlude).substitute(None, **builder_args))
+        # for member in [member for member in required_members if member.is_nullable]:
+        #     lines.append(self._generate_unchecked_setter_for_member(member, domain))
         for member in optional_members:
             lines.append(self._generate_unchecked_setter_for_member(member, domain))
 
@@ -329,7 +331,7 @@ class CppProtocolTypesHeaderGenerator(CppGenerator):
         setter_args = {
             'camelName': ucfirst(type_member.member_name),
             'setter': CppGenerator.cpp_setter_method_for_type(type_member.type),
-            'memberType': CppGenerator.cpp_type_for_type_member_argument(type_member.type, type_member.member_name),
+            'memberType': CppGenerator.cpp_type_for_type_member_argument(type_member.type, type_member.member_name, type_member.is_nullable),
             'memberKey': type_member.member_name,
             'memberName': member_name,
             'memberValue': member_value,
@@ -340,7 +342,14 @@ class CppProtocolTypesHeaderGenerator(CppGenerator):
         lines.append('        Builder<STATE | %(camelName)sSet>& set%(camelName)s(%(memberType)s %(memberName)s)' % setter_args)
         lines.append('        {')
         lines.append('            static_assert(!(STATE & %(camelName)sSet), "property %(memberKey)s already set");' % setter_args)
-        lines.append('            m_result->%(setter)s("%(memberKey)s"_s, %(memberValue)s);' % setter_args)
+        if (type_member.is_nullable):
+            lines.append('            if (!%(memberName)s) {' % setter_args)
+            lines.append('                m_result->setValue("%(memberKey)s"_s, JSON::Value::null());' % setter_args)
+            lines.append('                return castState<%(camelName)sSet>();' % setter_args)
+            lines.append('            }')
+            lines.append('            m_result->%(setter)s("%(memberKey)s"_s, *%(memberValue)s);' % setter_args)
+        else:
+            lines.append('            m_result->%(setter)s("%(memberKey)s"_s, %(memberValue)s);' % setter_args)
         lines.append('            return castState<%(camelName)sSet>();' % setter_args)
         lines.append('        }')
         return '\n'.join(lines)
@@ -369,6 +378,12 @@ class CppProtocolTypesHeaderGenerator(CppGenerator):
         lines.append('    {')
         lines.append('        JSON::ObjectBase::%(setter)s("%(memberKey)s"_s, %(memberValue)s);' % setter_args)
         lines.append('    }')
+        if type_member.is_nullable:
+            lines.append('')
+            lines.append('    void setNull%(camelName)s()' % setter_args)
+            lines.append('    {')
+            lines.append('        JSON::ObjectBase::setValue("%(memberKey)s"_s, JSON::Value::null());' % setter_args)
+            lines.append('    }')
         return '\n'.join(lines)
 
     def _generate_forward_declarations_for_binding_traits(self, domains):

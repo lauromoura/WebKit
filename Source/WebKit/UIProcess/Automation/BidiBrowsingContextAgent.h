@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include "FrameTreeNodeData.h"
+#include "WebCore/FrameIdentifier.h"
 #if ENABLE(WEBDRIVER_BIDI)
 
 #include "WebDriverBidiBackendDispatchers.h"
@@ -36,7 +38,9 @@
 
 namespace WebKit {
 
+class FrameTreeNodeData;
 class WebAutomationSession;
+class WebPageProxy;
 
 class BidiBrowsingContextAgent final : public Inspector::BidiBrowsingContextBackendDispatcherHandler {
     WTF_MAKE_TZONE_ALLOCATED(BidiBrowsingContextAgent);
@@ -54,6 +58,12 @@ public:
     void reload(const Inspector::Protocol::BidiBrowsingContext::BrowsingContext&, std::optional<bool>&& optionalIgnoreCache, std::optional<Inspector::Protocol::BidiBrowsingContext::ReadinessState>&& optionalWait, Inspector::CommandCallbackOf<String, String>&&) override;
 
 private:
+    enum class IncludeParentID: bool { No, Yes };
+
+    void getNextTree(Vector<Ref<WebPageProxy>>&&, Ref<JSON::ArrayOf<Inspector::Protocol::BidiBrowsingContext::Info>>, std::optional<unsigned> maxDepth, Inspector::CommandCallback<Ref<JSON::ArrayOf<Inspector::Protocol::BidiBrowsingContext::Info>>>&&);
+    Ref<Inspector::Protocol::BidiBrowsingContext::Info> getNavigableInfo(const WebKit::FrameTreeNodeData&, std::optional<unsigned> maxDepth, IncludeParentID);
+    Inspector::Protocol::BidiBrowsingContext::BrowsingContext getBrowsingContextID(const WebCore::FrameIdentifier&) const;
+
     WeakPtr<WebAutomationSession> m_session;
     Ref<Inspector::BidiBrowsingContextBackendDispatcher> m_browsingContextDomainDispatcher;
 };

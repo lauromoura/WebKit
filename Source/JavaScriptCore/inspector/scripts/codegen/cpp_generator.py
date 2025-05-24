@@ -132,24 +132,34 @@ class CppGenerator(Generator):
         raise ValueError("unknown type")
 
     @staticmethod
-    def cpp_type_for_type_member_argument(_type, name):
+    def cpp_type_for_type_member_argument(_type, name, is_nullable=False):
         if isinstance(_type, AliasedType):
             _type = _type.aliased_type
             # Fallthrough.
 
         if isinstance(_type, (ArrayType, ObjectType)):
+            if is_nullable:
+                return 'RefPtr<%s>&&' % CppGenerator.cpp_protocol_type_for_type(_type)
             return 'Ref<%s>&&' % CppGenerator.cpp_protocol_type_for_type(_type)
 
         if _type.qualified_name() == 'object':
+            if is_nullable:
+                return 'RefPtr<JSON::Object>&&'
             return 'Ref<JSON::Object>&&'
 
         if _type.qualified_name() == 'array':
+            if is_nullable:
+                return 'RefPtr<JSON::Array>&&'
             return 'Ref<JSON::Array>&&'
 
         if _type.qualified_name() == 'any':
+            if is_nullable:
+                return 'RefPtr<JSON::Value>&&'
             return 'Ref<JSON::Value>&&'
 
         if _type.qualified_name() == 'string':
+            if is_nullable:
+                return 'const std::optional<%s>&' % CppGenerator.cpp_name_for_primitive_type(_type)
             return 'const %s&' % CppGenerator.cpp_name_for_primitive_type(_type)
 
         if isinstance(_type, EnumType):
@@ -158,6 +168,8 @@ class CppGenerator(Generator):
             return 'Protocol::%s::%s' % (_type.type_domain().domain_name, _type.raw_name())
 
         if isinstance(_type, PrimitiveType):
+            if is_nullable:
+                return 'std::optional<%s>&&' % CppGenerator.cpp_name_for_primitive_type(_type)
             return CppGenerator.cpp_name_for_primitive_type(_type)
 
         raise ValueError("unknown type")
