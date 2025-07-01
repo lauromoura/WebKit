@@ -34,6 +34,11 @@
 #include <wtf/text/Base64.h>
 #include <wtf/text/MakeString.h>
 
+#if ENABLE(WPE_PLATFORM)
+#include <WebKit/WKView.h>
+#include <wpe/wpe-platform.h>
+#endif
+
 #if USE(CAIRO)
 #include <cairo.h>
 #elif USE(SKIA)

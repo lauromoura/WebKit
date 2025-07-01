@@ -153,6 +153,10 @@ void PageClientImpl::toolTipChanged(const String&, const String&)
 
 void PageClientImpl::didCommitLoadForMainFrame(const String&, bool)
 {
+#if ENABLE(WPE_PLATFORM)
+    if (GRefPtr<WPEView> view = m_view.wpeView())
+        wpe_view_clear_press_count(view.get());
+#endif
 }
 
 void PageClientImpl::didChangeContentSize(const WebCore::IntSize&)

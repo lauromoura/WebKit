@@ -997,6 +997,20 @@ guint wpe_view_compute_press_count(WPEView* view, gdouble x, gdouble y, guint bu
 }
 
 /**
+ * wpe_view_clear_press_count
+ * @view: a #WPEView
+ *
+ * Clear any button press being tracked.
+ */
+void wpe_view_clear_press_count(WPEView* view)
+{
+    g_return_if_fail(WPE_IS_VIEW(view));
+
+    auto* priv = view->priv;
+    priv->lastButtonPress = { };
+}
+
+/**
  * wpe_view_focus_in:
  * @view: a #WPEView
  *
