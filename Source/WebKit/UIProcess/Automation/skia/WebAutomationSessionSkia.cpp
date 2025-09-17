@@ -64,10 +64,19 @@ std::optional<String> WebAutomationSession::platformGetBase64EncodedPNGData(Shar
 }
 
 #if !PLATFORM(GTK)
-std::optional<String> WebAutomationSession::platformGetBase64EncodedPNGData(const ViewSnapshot&)
+std::optional<String> WebAutomationSession::platformGetBase64EncodedPNGData(const ViewSnapshot& snapshot)
 {
-    notImplemented();
-    return std::nullopt;
+    auto skiaImage = snapshot.image();
+    if (!skiaImage)
+        return std::nullopt;
+
+    auto data = SkPngEncoder::Encode(nullptr, skiaImage, { });
+    if (!data)
+        return std::nullopt;
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // Skia port
+    return base64EncodeToString(std::span<const uint8_t>(data->bytes(), data->size()));
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 }
 #endif
 

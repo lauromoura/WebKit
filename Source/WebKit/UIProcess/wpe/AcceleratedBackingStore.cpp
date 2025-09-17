@@ -29,6 +29,7 @@
 #if ENABLE(WPE_PLATFORM)
 #include "AcceleratedBackingStoreMessages.h"
 #include "AcceleratedSurfaceMessages.h"
+#include "ViewSnapshotStore.h"
 #include "WebPageProxy.h"
 #include "WebProcessProxy.h"
 #include <WebCore/ShareableBitmap.h>
@@ -38,6 +39,17 @@
 
 #if USE(LIBDRM)
 #include <drm_fourcc.h>
+#endif
+
+#if USE(SKIA)
+IGNORE_CLANG_WARNINGS_BEGIN("cast-align")
+#include <skia/core/SkColorSpace.h>
+#include <skia/core/SkPixmap.h>
+#include <skia/core/SkStream.h>
+IGNORE_CLANG_WARNINGS_END
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // Skia port
+#include <skia/encode/SkPngEncoder.h>
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
 
 namespace WebKit {
@@ -71,6 +83,12 @@ AcceleratedBackingStore::~AcceleratedBackingStore()
         if (RefPtr legacyMainFrameProcess = m_legacyMainFrameProcess.get())
             legacyMainFrameProcess->removeMessageReceiver(Messages::AcceleratedBackingStore::messageReceiverName(), m_surfaceID);
     }
+
+#if USE(SKIA)
+    if (auto callback = std::exchange(m_snapshotCallback, { }))
+        callback(makeUnexpected("Unable to get snapshot before backing store is destroyed"_s));
+#endif
+
     g_signal_handlers_disconnect_by_data(m_wpeView.get(), this);
 }
 
@@ -152,6 +170,79 @@ void AcceleratedBackingStore::frame(uint64_t bufferID, Rects&& damageRects, WTF:
         m_fenceMonitor.addFileDescriptor(WTFMove(renderingFenceFD));
 }
 
+#if USE(SKIA)
+void AcceleratedBackingStore::requestSnapshot(std::optional<WebCore::IntRect>&& clipRect, ViewSnapshotRequestCallback&& completionHandler)
+{
+    if (m_snapshotCallback) {
+        completionHandler(makeUnexpected("Pending snapshot request already present"_s));
+        return;
+    }
+
+    m_snapshotRect = WTFMove(clipRect);
+    m_snapshotCallback = WTFMove(completionHandler);
+}
+
+static Expected<SkImageInfo, String> getImageInfoFromBuffer(const  GRefPtr<WPEBuffer>& buffer)
+{
+    auto width = wpe_buffer_get_width(buffer.get());
+    auto height = wpe_buffer_get_height(buffer.get());
+
+    if (WPE_IS_BUFFER_DMA_BUF(buffer.get())) {
+        auto* dmaBuffer = WPE_BUFFER_DMA_BUF(buffer.get());
+        SkAlphaType alphaType = kPremul_SkAlphaType;
+        if (wpe_buffer_dma_buf_get_format(dmaBuffer) == DRM_FORMAT_XRGB8888)
+            alphaType = kOpaque_SkAlphaType;
+        return SkImageInfo::Make(width, height, kBGRA_8888_SkColorType, alphaType, SkColorSpace::MakeSRGB());
+    }
+
+    if (WPE_IS_BUFFER_SHM(buffer.get())) {
+        SkAlphaType alphaType = kPremul_SkAlphaType;
+        return SkImageInfo::Make(width, height, kBGRA_8888_SkColorType, alphaType, SkColorSpace::MakeSRGB());
+    }
+    return makeUnexpected("Failed to extract snapshot pixel information"_s);
+}
+
+static Expected<Ref<ViewSnapshot>, String> saveBufferSnapshot(const GRefPtr<WPEBuffer>& buffer, std::optional<WebCore::IntRect>&& clipRect)
+{
+    GUniqueOutPtr<GError> error;
+    GBytes* pixels = wpe_buffer_import_to_pixels(buffer.get(), &error.outPtr());
+
+    if (!pixels) {
+        g_warning("Failed to read current WPEBuffer for snapshot: %s", error->message);
+        return makeUnexpected("Failed to read current WPEBuffer for snapshot"_s);
+    }
+
+    gsize pixelsDataSize;
+    const auto* pixelsData = g_bytes_get_data(pixels, &pixelsDataSize);
+    GRefPtr<GBytes> bytes = adoptGRef(g_bytes_new(pixelsData, pixelsDataSize));
+
+    // FIXME We need to check the actual format of pixel data for other kinds of WPEBuffers
+    auto info = getImageInfoFromBuffer(buffer);
+    if (!info)
+        return makeUnexpected(info.error());
+
+    SkPixmap pixmap(info.value(), g_bytes_get_data(bytes.get(), nullptr), info->minRowBytes());
+
+    if (clipRect) {
+        SkIRect clippedRect = SkIRect::MakeXYWH(clipRect->x(), clipRect->y(), clipRect->width(), clipRect->height());
+        SkImageInfo clippedInfo = info->makeWH(clipRect->width(), clipRect->height());
+        SkPixmap clippedPixmap(info.value(), nullptr, clippedInfo.minRowBytes());
+        if (!pixmap.extractSubset(&clippedPixmap, clippedRect))
+            return makeUnexpected("Failed to extract clipped snapshot"_s);
+        pixmap = clippedPixmap;
+    }
+
+    auto image = SkImages::RasterFromPixmap(pixmap, [](const void*, void* context) {
+        g_bytes_unref(static_cast<GBytes*>(context));
+    }, bytes.leakRef());
+
+    if (!image)
+        return makeUnexpected("Failed to create snapshot image"_s);
+
+    return { ViewSnapshot::create(WTFMove(image)) };
+}
+#endif
+
 void AcceleratedBackingStore::renderPendingBuffer()
 {
     // Rely on the layout of IntRect matching that of WPERectangle
@@ -161,7 +252,14 @@ void AcceleratedBackingStore::renderPendingBuffer()
     ASSERT(m_pendingDamageRects.size() <= std::numeric_limits<guint>::max());
     const auto* rects = !m_pendingDamageRects.isEmpty() ? reinterpret_cast<const WPERectangle*>(m_pendingDamageRects.span().data()) : nullptr;
 
+#if USE(SKIA)
     GUniqueOutPtr<GError> error;
+    if (m_snapshotCallback) [[unlikely]] {
+        auto callback = std::exchange(m_snapshotCallback, { });
+        callback(saveBufferSnapshot(m_pendingBuffer, std::exchange(m_snapshotRect, { })));
+    }
+#endif // USE(SKIA)
+
     if (!wpe_view_render_buffer(m_wpeView.get(), m_pendingBuffer.get(), rects, m_pendingDamageRects.size(), &error.outPtr())) {
         g_warning("Failed to render frame: %s", error->message);
         frameDone();
@@ -180,6 +278,7 @@ void AcceleratedBackingStore::bufferRendered()
 {
     frameDone();
     m_committedBuffer = WTFMove(m_pendingBuffer);
+
 }
 
 void AcceleratedBackingStore::bufferReleased(WPEBuffer* buffer)

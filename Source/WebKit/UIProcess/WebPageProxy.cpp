@@ -13651,6 +13651,22 @@ RefPtr<ViewSnapshot> WebPageProxy::takeViewSnapshot(std::optional<WebCore::IntRe
 
 #endif // PLATFORM(COCOA) || PLATFORM(GTK)
 
+#if PLATFORM(WPE) && USE(SKIA)
+// FIXME Rename with requestViewSnapshot, to contrast with the sync "takeViewSnapshot" methods
+void WebPageProxy::takeViewSnapshotAsync(std::optional<WebCore::IntRect>&& clipRect, ViewSnapshotRequestCallback&& completionHandler)
+{
+    RefPtr pageClient = this->pageClient();
+    if (!pageClient)
+        completionHandler(makeUnexpected("No PageClient available to handle snapshot request"_s));
+
+    pageClient->takeViewSnapshotAsync(WTFMove(clipRect), WTFMove(completionHandler));
+
+    // FIXME Is this ok to call this rightaway or would be better to check if we already have a pending buffer?
+    updateRenderingWithForcedRepaint([]() { });
+}
+
+#endif
+
 #if PLATFORM(GTK) || PLATFORM(WPE)
 
 void WebPageProxy::cancelComposition(const String& compositionString)

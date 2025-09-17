@@ -232,6 +232,10 @@ using LayerHostingContextID = uint32_t;
 class WebKitWebResourceLoadManager;
 #endif
 
+#if PLATFORM(WPE) && USE(SKIA)
+using ViewSnapshotRequestCallback = CompletionHandler<void(Expected<Ref<ViewSnapshot>, String>&&)>;
+#endif
+
 class PageClient : public CanMakeWeakPtr<PageClient> {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(PageClient);
 public:
@@ -394,6 +398,11 @@ public:
 #if PLATFORM(MAC)
     virtual RefPtr<ViewSnapshot> takeViewSnapshot(std::optional<WebCore::IntRect>&&, ForceSoftwareCapturingViewportSnapshot) = 0;
 #endif
+
+#if PLATFORM(WPE) && USE(SKIA)
+    virtual void takeViewSnapshotAsync(std::optional<WebCore::IntRect>&&, ViewSnapshotRequestCallback&&) = 0;
+#endif
+
 
 #if USE(APPKIT)
     virtual void setPromisedDataForImage(const String& pasteboardName, Ref<WebCore::FragmentedSharedBuffer>&& imageBuffer, const String& filename, const String& extension, const String& title, const String& url, const String& visibleURL, RefPtr<WebCore::FragmentedSharedBuffer>&& archiveBuffer, const String& originIdentifier) = 0;

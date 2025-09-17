@@ -2545,7 +2545,7 @@ void WebAutomationSession::takeScreenshot(const Inspector::Protocol::Automation:
     bool scrollIntoViewIfNeeded = optionalScrollIntoViewIfNeeded ? *optionalScrollIntoViewIfNeeded : false;
     bool clipToViewport = optionalClipToViewport ? *optionalClipToViewport : false;
 
-#if PLATFORM(COCOA) || !PLATFORM(GTK)
+#if PLATFORM(COCOA) || (!PLATFORM(GTK) && !PLATFORM(WPE))
     auto ipcCompletionHandler = [] (CommandCallback<String>&& callback) mutable {
         return CompletionHandler<void(std::optional<ShareableBitmap::Handle>&&, String&&)> { [callback = WTFMove(callback)] (std::optional<ShareableBitmap::Handle>&& imageDataHandle, String&& errorType) mutable {
             if (!errorType.isEmpty())
@@ -2581,6 +2581,33 @@ void WebAutomationSession::takeScreenshot(const Inspector::Protocol::Automation:
             ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!base64EncodedData, InternalError);
 
             callback(base64EncodedData.value());
+        });
+    };
+
+    if (nodeHandle.isEmpty()) {
+        takeViewSnapshot(*page, std::nullopt, WTFMove(callback));
+        return;
+    }
+
+    CompletionHandler<void(std::optional<String>&&, WebCore::IntRect&&)> completionHandler = [page = Ref { *page }, callback = WTFMove(callback), takeViewSnapshot = WTFMove(takeViewSnapshot)](std::optional<String>&& optionalError, WebCore::IntRect&& rect) mutable {
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF_SET(optionalError);
+
+        takeViewSnapshot(page.get(), WTFMove(rect), WTFMove(callback));
+    };
+
+    page->sendWithAsyncReplyToProcessContainingFrameWithoutDestinationIdentifier(frameID, Messages::WebAutomationSessionProxy::SnapshotRectForScreenshot(page->webPageIDInMainFrameProcess(), frameID, nodeHandle, scrollIntoViewIfNeeded, clipToViewport), WTFMove(completionHandler));
+#elif PLATFORM(WPE) && USE(SKIA)
+    Function<void(WebPageProxy&, std::optional<WebCore::IntRect>&&, CommandCallback<String>&&)> takeViewSnapshot = [](WebPageProxy& page, std::optional<WebCore::IntRect>&& rect, CommandCallback<String>&& callback) {
+        // FIXME Now that we're adding a takeViewSnapshotAsync, should we still wait for the next presentation update?
+        page.callAfterNextPresentationUpdate([page = Ref { page }, rect = WTFMove(rect), callback = WTFMove(callback)] () mutable {
+            page->takeViewSnapshotAsync(WTFMove(rect), [page = Ref { page }, callback = WTFMove(callback)](Expected<Ref<ViewSnapshot>, String>&& snapshot) {
+                ASYNC_FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS_IF(!snapshot, InternalError, snapshot.error());
+
+                std::optional<String> base64EncodedData = platformGetBase64EncodedPNGData(snapshot.value().get());
+                ASYNC_FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS_IF(!base64EncodedData, InternalError, "Failed to extract base64 data from screenshot."_s);
+
+                callback(base64EncodedData.value());
+            });
         });
     };
 

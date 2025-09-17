@@ -664,6 +664,15 @@ void ViewPlatform::callAfterNextPresentationUpdate(CompletionHandler<void()>&& c
     }
 }
 
+#if USE(SKIA)
+void ViewPlatform::takeViewSnapshotAsync(std::optional<WebCore::IntRect>&& clipRect, ViewSnapshotRequestCallback&& completionHandler)
+{
+    m_backingStore->requestSnapshot(WTFMove(clipRect), WTFMove(completionHandler));
+}
+#endif
+
+
+
 } // namespace WKWPE
 
 #endif // ENABLE(WPE_PLATFORM)

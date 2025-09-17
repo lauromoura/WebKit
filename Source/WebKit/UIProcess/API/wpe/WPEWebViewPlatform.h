@@ -62,6 +62,10 @@ public:
     static WebKit::WebPageProxy* platformWebPageProxyForGamepadInput();
 #endif
 
+#if USE(SKIA)
+    void takeViewSnapshotAsync(std::optional<WebCore::IntRect>&&, WebKit::ViewSnapshotRequestCallback&&);
+#endif
+
     void updateAcceleratedSurface(uint64_t);
     WebKit::RendererBufferDescription renderBufferDescription() const;
 

@@ -668,6 +668,10 @@ using WebPageProxyIdentifier = ObjectIdentifier<WebPageProxyIdentifierType>;
 using WebURLSchemeHandlerIdentifier = ObjectIdentifier<WebURLSchemeHandlerIdentifierType>;
 using WebUndoStepID = uint64_t;
 
+#if PLATFORM(WPE) && USE(SKIA)
+using ViewSnapshotRequestCallback = CompletionHandler<void(Expected<Ref<ViewSnapshot>, String>&&)>;
+#endif
+
 class WebPageProxy final : public API::ObjectImpl<API::Object::Type::Page>, public IPC::MessageReceiver {
 public:
     static Ref<WebPageProxy> create(PageClient&, WebProcessProxy&, Ref<API::PageConfiguration>&&);
@@ -1957,6 +1961,9 @@ public:
 #if PLATFORM(COCOA) || PLATFORM(GTK)
     RefPtr<ViewSnapshot> takeViewSnapshot(std::optional<WebCore::IntRect>&&);
     RefPtr<ViewSnapshot> takeViewSnapshot(std::optional<WebCore::IntRect>&&, ForceSoftwareCapturingViewportSnapshot);
+#endif
+#if PLATFORM(WPE) && USE(SKIA)
+    void takeViewSnapshotAsync(std::optional<WebCore::IntRect>&&, ViewSnapshotRequestCallback&&);
 #endif
 
     void serializeAndWrapCryptoKey(IPC::Connection&, WebCore::CryptoKeyData&&, CompletionHandler<void(std::optional<Vector<uint8_t>>&&)>&&);

@@ -46,6 +46,11 @@
 #endif
 #endif
 
+#if PLATFORM(WPE) && USE(SKIA)
+#include <skia/core/SkImage.h>
+#include <wtf/Expected.h>
+#endif
+
 namespace WebKit {
 
 class WebBackForwardListItem;
@@ -64,6 +69,9 @@ public:
 #else
     static Ref<ViewSnapshot> create(RefPtr<cairo_surface_t>&&);
 #endif
+#endif
+#if PLATFORM(WPE) && USE(SKIA)
+    static Ref<ViewSnapshot> create(sk_sp<SkImage>&&);
 #endif
 
     ~ViewSnapshot();
@@ -116,6 +124,13 @@ public:
     WebCore::IntSize size() const;
 #endif
 
+#if PLATFORM(WPE) && USE(SKIA)
+    SkImage* image() const { return m_image.get(); }
+
+    size_t estimatedImageSizeInBytes() const;
+    WebCore::IntSize size() const;
+#endif
+
 private:
 #if HAVE(IOSURFACE)
     explicit ViewSnapshot(std::unique_ptr<WebCore::IOSurface>);
@@ -135,6 +150,12 @@ private:
 #endif
 #endif
 
+#if PLATFORM(WPE) && USE(SKIA)
+    explicit ViewSnapshot(sk_sp<SkImage>&&);
+
+    sk_sp<SkImage> m_image;
+#endif
+
     uint64_t m_renderTreeSize;
     float m_deviceScaleFactor;
     WebCore::Color m_backgroundColor;
@@ -142,6 +163,12 @@ private:
     WebCore::FloatBoxExtent m_computedObscuredInset;
     WebCore::SecurityOriginData m_origin;
 };
+
+#if PLATFORM(WPE) && USE(SKIA)
+using ViewSnapshotRequestCallback = CompletionHandler<void(Expected<Ref<ViewSnapshot>, String>&&)>;
+#endif
+
+#if !PLATFORM(WPE)
 
 class ViewSnapshotStore {
     WTF_MAKE_NONCOPYABLE(ViewSnapshotStore);
@@ -170,5 +197,7 @@ private:
     ListHashSet<WeakRef<ViewSnapshot>> m_snapshotsWithImages;
     bool m_disableSnapshotVolatility { false };
 };
+
+#endif // !PLATFORM(WPE)
 
 } // namespace WebKit

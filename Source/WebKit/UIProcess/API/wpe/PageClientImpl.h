@@ -188,6 +188,10 @@ private:
 
     WebKitWebResourceLoadManager* webResourceLoadManager() override;
 
+#if USE(SKIA)
+    void takeViewSnapshotAsync(std::optional<WebCore::IntRect>&&, ViewSnapshotRequestCallback&&) override;
+#endif
+
     WKWPE::View& m_view;
     DefaultUndoController m_undoController;
 #if ENABLE(FULLSCREEN_API)

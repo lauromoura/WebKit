@@ -106,6 +106,7 @@ Shared/wpe/WebKeyboardEventWPE.cpp
 
 UIProcess/DefaultUndoController.cpp
 UIProcess/LegacySessionStateCodingNone.cpp
+UIProcess/ViewSnapshotStore.cpp
 UIProcess/WebGrammarDetail.cpp
 UIProcess/WebMemoryPressureHandler.cpp @no-unify
 UIProcess/WebViewportAttributes.cpp
@@ -259,6 +260,8 @@ UIProcess/WebsiteData/glib/WebsiteDataStoreGLib.cpp
 UIProcess/WebsiteData/soup/WebsiteDataStoreSoup.cpp
 
 UIProcess/linux/MemoryPressureMonitor.cpp
+
+UIProcess/skia/ViewSnapshotSkia.cpp
 
 UIProcess/soup/WebProcessPoolSoup.cpp
 

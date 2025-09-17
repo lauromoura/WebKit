@@ -32,6 +32,7 @@
 #include "NativeWebTouchEvent.h"
 #include "NativeWebWheelEvent.h"
 #include "TouchGestureController.h"
+#include "ViewSnapshotStore.h"
 #include "WPEWebViewLegacy.h"
 #include "WPEWebViewPlatform.h"
 #include "WebColorPicker.h"
@@ -563,5 +564,18 @@ void PageClientImpl::callAfterNextPresentationUpdate(CompletionHandler<void()>&&
 {
     m_view.callAfterNextPresentationUpdate(WTFMove(callback));
 }
+
+#if USE(SKIA)
+void PageClientImpl::takeViewSnapshotAsync(std::optional<WebCore::IntRect>&& clipRect, ViewSnapshotRequestCallback&& completionHandler)
+{
+#if ENABLE(WPE_PLATFORM)
+    if (m_view.wpeView())
+        static_cast<WKWPE::ViewPlatform&>(m_view).takeViewSnapshotAsync(WTFMove(clipRect), WTFMove(completionHandler));
+#else
+    UNUSED_PARAM(clipRect)
+    completionHandler(makeUnexpected("Unsupported operation"_s));
+#endif
+}
+#endif
 
 } // namespace WebKit

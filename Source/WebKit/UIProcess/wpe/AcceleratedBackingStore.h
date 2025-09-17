@@ -31,6 +31,7 @@
 #include "RendererBufferDescription.h"
 #include <WebCore/IntRect.h>
 #include <WebCore/IntSize.h>
+#include <wtf/CompletionHandler.h>
 #include <wtf/HashMap.h>
 #include <wtf/RefCounted.h>
 #include <wtf/TZoneMalloc.h>
@@ -50,8 +51,13 @@ class UnixFileDescriptor;
 
 namespace WebKit {
 
+class ViewSnapshot;
 class WebPageProxy;
 class WebProcessProxy;
+
+#if USE(SKIA)
+using ViewSnapshotRequestCallback = CompletionHandler<void(Expected<Ref<ViewSnapshot>, String>&&)>;
+#endif
 
 class AcceleratedBackingStore final : public IPC::MessageReceiver, public RefCounted<AcceleratedBackingStore> {
     WTF_MAKE_TZONE_ALLOCATED(AcceleratedBackingStore);
@@ -66,6 +72,10 @@ public:
     void deref() const final { RefCounted::deref(); }
 
     void updateSurfaceID(uint64_t);
+
+#if USE(SKIA)
+    void requestSnapshot(std::optional<WebCore::IntRect>&&, ViewSnapshotRequestCallback&&);
+#endif
 
     RendererBufferDescription bufferDescription() const;
 
@@ -94,6 +104,11 @@ private:
     Rects m_pendingDamageRects;
     HashMap<uint64_t, GRefPtr<WPEBuffer>> m_buffers;
     HashMap<WPEBuffer*, uint64_t> m_bufferIDs;
+
+#if USE(SKIA)
+    std::optional<WebCore::IntRect> m_snapshotRect;
+    ViewSnapshotRequestCallback m_snapshotCallback;
+#endif
 };
 
 } // namespace WebKit
