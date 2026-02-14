@@ -196,6 +196,7 @@ AcceleratedSurface::RenderTargetShareableBuffer::~RenderTargetShareableBuffer()
 
 void AcceleratedSurface::RenderTargetShareableBuffer::didRenderFrame(Vector<IntRect, 1>&& damageRects)
 {
+    WTFEmitSignpost(this, FrameSubmission, "surface=%llu, damageRects=%zu", static_cast<unsigned long long>(m_surfaceID), damageRects.size());
     WebProcess::singleton().parentProcessConnection()->send(Messages::AcceleratedBackingStore::Frame(m_id, WTF::move(damageRects), WTF::move(m_renderingFenceFD)), m_surfaceID);
 }
 
@@ -1115,6 +1116,7 @@ void AcceleratedSurface::releaseBuffer(uint64_t targetID, UnixFileDescriptor&& r
 
 void AcceleratedSurface::frameDone()
 {
+    WTFEmitSignpost(this, FrameDoneReceived, "surface=%llu", static_cast<unsigned long long>(surfaceID()));
     if (m_frameCompleteHandler)
         m_frameCompleteHandler();
     m_target = nullptr;

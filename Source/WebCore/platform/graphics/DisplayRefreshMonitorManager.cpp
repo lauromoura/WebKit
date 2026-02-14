@@ -30,6 +30,7 @@
 #include "DisplayRefreshMonitorClient.h"
 #include "DisplayRefreshMonitorFactory.h"
 #include "Logging.h"
+#include <wtf/SystemTracing.h>
 #include <wtf/text/TextStream.h>
 
 namespace WebCore {
@@ -111,8 +112,12 @@ std::optional<FramesPerSecond> DisplayRefreshMonitorManager::nominalFramesPerSec
 
 void DisplayRefreshMonitorManager::displayDidRefresh(PlatformDisplayID displayID, const DisplayUpdate& displayUpdate)
 {
-    if (RefPtr monitor = monitorForDisplayID(displayID))
-        monitor->displayLinkFired(displayUpdate);
+    RefPtr monitor = monitorForDisplayID(displayID);
+    if (!monitor) {
+        WTFEmitSignpost(this, DisplayRefreshNoMonitor, "displayID=%u", displayID);
+        return;
+    }
+    monitor->displayLinkFired(displayUpdate);
 }
 
 size_t DisplayRefreshMonitorManager::findMonitorForDisplayID(PlatformDisplayID displayID) const

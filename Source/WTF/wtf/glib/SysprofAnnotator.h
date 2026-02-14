@@ -285,6 +285,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         case SyntheticMomentumEvent:
         case RemoteLayerTreeScheduleRenderingUpdate:
         case DisplayLinkUpdate:
+        case DisplayRefreshMonitorFrameDropped:
+        case DisplayRefreshMonitorUnscheduled:
+        case DisplayRefreshClientNotScheduled:
+        case DisplayRefreshClientThrottled:
+        case DisplayRefreshNoMonitor:
             instantMark(tracePointCodeName(code).spanIncludingNullTerminator(), "%s", "");
             break;
 
@@ -515,6 +520,16 @@ private:
             return "RemoteLayerTreeScheduleRenderingUpdate"_s;
         case DisplayLinkUpdate:
             return "DisplayLinkUpdate"_s;
+        case DisplayRefreshMonitorFrameDropped:
+            return "DisplayRefreshMonitorFrameDropped"_s;
+        case DisplayRefreshMonitorUnscheduled:
+            return "DisplayRefreshMonitorUnscheduled"_s;
+        case DisplayRefreshClientNotScheduled:
+            return "DisplayRefreshClientNotScheduled"_s;
+        case DisplayRefreshClientThrottled:
+            return "DisplayRefreshClientThrottled"_s;
+        case DisplayRefreshNoMonitor:
+            return "DisplayRefreshNoMonitor"_s;
         case UpdateLayerContentBuffersStart:
         case UpdateLayerContentBuffersEnd:
             return "UpdateLayerContentBuffers"_s;

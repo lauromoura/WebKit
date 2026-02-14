@@ -2558,10 +2558,19 @@ void Heap::didFinishCollection()
 {
     m_afterGC = MonotonicTime::now();
     CollectionScope scope = *m_collectionScope;
+    auto gcDuration = m_afterGC - m_beforeGC;
     if (scope == CollectionScope::Full)
-        m_lastFullGCLength = m_afterGC - m_beforeGC;
+        m_lastFullGCLength = gcDuration;
     else
-        m_lastEdenGCLength = m_afterGC - m_beforeGC;
+        m_lastEdenGCLength = gcDuration;
+
+    // Emit actual GC duration for comparison with estimates
+    const char* gcType = scope == CollectionScope::Full ? "Full" : "Eden";
+    const char* gcSource = m_isInOpportunisticTask ? "opportunistic" : "timer";
+    WTFEmitSignpost(this, GCActualDuration, "%s %s duration=%.2fms heap=%zukb",
+        gcType, gcSource, gcDuration.milliseconds(), size() / 1024);
+    WTFSetCounter(GCActualDurationUs, static_cast<int64_t>(gcDuration.microseconds()));
+    WTFSetCounter(GCIsOpportunistic, m_isInOpportunisticTask ? 1 : 0);
 
 #if ENABLE(RESOURCE_USAGE)
     ASSERT(externalMemorySize() <= extraMemorySize());

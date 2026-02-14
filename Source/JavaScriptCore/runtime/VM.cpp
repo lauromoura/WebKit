@@ -1890,20 +1890,32 @@ void VM::performOpportunisticallyScheduledTasks(MonotonicTime deadline, OptionSe
 {
     constexpr bool verbose = false;
 
+    auto entryTime = ApproximateTime::now();
+    auto remainingTimeAtEntry = deadline.secondsSinceEpoch() - entryTime.secondsSinceEpoch();
+
     dataLogLnIf(verbose, "[OPPORTUNISTIC TASK] QUERY", " signpost:(", JSC::activeJSGlobalObjectSignpostIntervalCount.load(), ")");
     JSLockHolder locker { *this };
     if (deferredWorkTimer->hasImminentlyScheduledWork()) {
         dataLogLnIf(verbose, "[OPPORTUNISTIC TASK] GaveUp: DeferredWorkTimer hasImminentlyScheduledWork signpost:(", JSC::activeJSGlobalObjectSignpostIntervalCount.load(), ")");
+        WTFEmitSignpost(this, VMOTSSkip, "DeferredWorkTimer has imminent work, remaining=%.2fms", remainingTimeAtEntry.milliseconds());
         return;
     }
+
+    static bool ignoreImminentWork = [] {
+        auto* env = getenv("IGNORE_SCHEDULED_IMMINENT_WORK_FOR_GC");
+        return env && env[0] == '1';
+    }();
 
     SetForScope insideOpportunisticTaskScope { heap.m_isInOpportunisticTask, true };
     [&] {
         auto secondsSinceEpoch = ApproximateTime::now().secondsSinceEpoch();
         auto remainingTime = deadline.secondsSinceEpoch() - secondsSinceEpoch;
 
-        if (options.contains(SchedulerOptions::HasImminentlyScheduledWork)) {
+        if (!ignoreImminentWork && options.contains(SchedulerOptions::HasImminentlyScheduledWork)) {
             dataLogLnIf(verbose, "[OPPORTUNISTIC TASK] GaveUp: HasImminentlyScheduledWork ", remainingTime, " signpost:(", JSC::activeJSGlobalObjectSignpostIntervalCount.load(), ")");
+            WTFEmitSignpost(this, VMOTSSkipImminentWork, "HasImminentlyScheduledWork, remaining=%.2fms", remainingTime.milliseconds());
+            WTFSetCounter(VMOTSRemainingTimeUs, static_cast<int64_t>(remainingTime.microseconds()));
+            WTFSetCounter(VMOTSGCSkipped, 1);
             return;
         }
 
@@ -1915,32 +1927,59 @@ void VM::performOpportunisticallyScheduledTasks(MonotonicTime deadline, OptionSe
         auto timeSinceFinishingLastFullGC = secondsSinceEpoch - heap.m_lastFullGCEndTime.secondsSinceEpoch();
         if (timeSinceFinishingLastFullGC > minimumDelayBeforeOpportunisticFullGC && heap.m_shouldDoOpportunisticFullCollection && heap.m_totalBytesVisitedAfterLastFullCollect) {
             auto estimatedGCDuration = (heap.lastFullGCLength() * heap.m_totalBytesVisited) / heap.m_totalBytesVisitedAfterLastFullCollect;
+            WTFSetCounter(VMOTSEstimatedFullGCUs, static_cast<int64_t>(estimatedGCDuration.microseconds()));
             if (estimatedGCDuration + extraDurationToAvoidExceedingDeadlineDuringFullGC < remainingTime) {
                 dataLogLnIf(verbose, "[OPPORTUNISTIC TASK] FULL", " signpost:(", JSC::activeJSGlobalObjectSignpostIntervalCount.load(), ")");
+                WTFEmitSignpost(this, VMOTSFullGC, "estimated=%.2fms remaining=%.2fms bytesVisited=%zu bytesVisitedAfterLast=%zu lastFullLen=%.2fms",
+                    estimatedGCDuration.milliseconds(), remainingTime.milliseconds(),
+                    heap.m_totalBytesVisited, heap.m_totalBytesVisitedAfterLastFullCollect,
+                    heap.lastFullGCLength().milliseconds());
                 heap.collectSync(CollectionScope::Full);
                 return;
             }
+            WTFEmitSignpost(this, VMOTSFullGCSkipped, "estimated=%.2fms (+%.2fms margin) > remaining=%.2fms bytesVisited=%zu bytesVisitedAfterLast=%zu lastFullLen=%.2fms",
+                estimatedGCDuration.milliseconds(), extraDurationToAvoidExceedingDeadlineDuringFullGC.milliseconds(), remainingTime.milliseconds(),
+                heap.m_totalBytesVisited, heap.m_totalBytesVisitedAfterLastFullCollect,
+                heap.lastFullGCLength().milliseconds());
         }
 
         auto timeSinceLastGC = secondsSinceEpoch - std::max(heap.m_lastGCEndTime, heap.m_currentGCStartTime).secondsSinceEpoch();
         if (timeSinceLastGC > minimumDelayBeforeOpportunisticEdenGC && heap.totalBytesAllocatedThisCycle() && heap.m_bytesAllocatedBeforeLastEdenCollect) {
             auto estimatedGCDuration = (heap.lastEdenGCLength() * heap.totalBytesAllocatedThisCycle()) / heap.m_bytesAllocatedBeforeLastEdenCollect;
+            WTFSetCounter(VMOTSEstimatedEdenGCUs, static_cast<int64_t>(estimatedGCDuration.microseconds()));
+            WTFSetCounter(VMOTSRemainingTimeUs, static_cast<int64_t>(remainingTime.microseconds()));
             if (estimatedGCDuration + extraDurationToAvoidExceedingDeadlineDuringEdenGC < remainingTime) {
                 dataLogLnIf(verbose, "[OPPORTUNISTIC TASK] EDEN: ", timeSinceFinishingLastFullGC, " ", timeSinceLastGC, " ", heap.m_shouldDoOpportunisticFullCollection, " ", heap.m_totalBytesVisitedAfterLastFullCollect, " ", heap.totalBytesAllocatedThisCycle(), " ", heap.m_bytesAllocatedBeforeLastEdenCollect, " ", heap.m_lastGCEndTime, " ", heap.m_currentGCStartTime, " ", (heap.lastFullGCLength() * heap.m_totalBytesVisited) / heap.m_totalBytesVisitedAfterLastFullCollect, " ", remainingTime, " ", (heap.lastEdenGCLength() * heap.totalBytesAllocatedThisCycle()) / heap.m_bytesAllocatedBeforeLastEdenCollect, " signpost:(", JSC::activeJSGlobalObjectSignpostIntervalCount.load(), ")");
+                WTFEmitSignpost(this, VMOTSEdenGC, "estimated=%.2fms remaining=%.2fms allocThisCycle=%zu allocBeforeLast=%zu lastEdenLen=%.2fms",
+                    estimatedGCDuration.milliseconds(), remainingTime.milliseconds(),
+                    heap.totalBytesAllocatedThisCycle(), heap.m_bytesAllocatedBeforeLastEdenCollect,
+                    heap.lastEdenGCLength().milliseconds());
                 heap.collectSync(CollectionScope::Eden);
                 return;
             } else if (estimatedGCDuration < 2 * remainingTime) {
                 if (heap.totalBytesAllocatedThisCycle() * 2 > heap.m_minBytesPerCycle) {
+                    WTFEmitSignpost(this, VMOTSEdenGCAsync, "estimated=%.2fms remaining=%.2fms (async) allocThisCycle=%zu allocBeforeLast=%zu lastEdenLen=%.2fms",
+                        estimatedGCDuration.milliseconds(), remainingTime.milliseconds(),
+                        heap.totalBytesAllocatedThisCycle(), heap.m_bytesAllocatedBeforeLastEdenCollect,
+                        heap.lastEdenGCLength().milliseconds());
                     heap.collectAsync(CollectionScope::Eden);
                     return;
                 }
             }
+            WTFEmitSignpost(this, VMOTSEdenGCSkipped, "estimated=%.2fms (+%.2fms margin) > remaining=%.2fms allocThisCycle=%zu allocBeforeLast=%zu lastEdenLen=%.2fms",
+                estimatedGCDuration.milliseconds(), extraDurationToAvoidExceedingDeadlineDuringEdenGC.milliseconds(), remainingTime.milliseconds(),
+                heap.totalBytesAllocatedThisCycle(), heap.m_bytesAllocatedBeforeLastEdenCollect,
+                heap.lastEdenGCLength().milliseconds());
         }
 
         dataLogLnIf(verbose, "[OPPORTUNISTIC TASK] GaveUp: nothing met. ", timeSinceFinishingLastFullGC, " ", timeSinceLastGC, " ", heap.m_shouldDoOpportunisticFullCollection, " ", heap.m_totalBytesVisitedAfterLastFullCollect, " ", heap.totalBytesAllocatedThisCycle(), " ", heap.m_bytesAllocatedBeforeLastEdenCollect, " ", heap.m_lastGCEndTime, " ", heap.m_currentGCStartTime, " ", (heap.lastFullGCLength() * heap.m_totalBytesVisited) / heap.m_totalBytesVisitedAfterLastFullCollect, " ", remainingTime, " ", (heap.lastEdenGCLength() * heap.totalBytesAllocatedThisCycle()) / heap.m_bytesAllocatedBeforeLastEdenCollect, " signpost:(", JSC::activeJSGlobalObjectSignpostIntervalCount.load(), ")");
+        WTFSetCounter(VMOTSGCSkipped, 0);
     }();
 
+    auto sweepStart = MonotonicTime::now();
     heap.sweeper().doWorkUntil(*this, deadline);
+    auto sweepDuration = MonotonicTime::now() - sweepStart;
+    WTFSetCounter(VMOTSSweepDurationUs, static_cast<int64_t>(sweepDuration.microseconds()));
 }
 
 void VM::invalidateStructureChainIntegrity(StructureChainIntegrityEvent)

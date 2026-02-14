@@ -31,6 +31,7 @@
 #include <wtf/CheckedPtr.h>
 #include <wtf/HashSet.h>
 #include <wtf/Lock.h>
+#include <wtf/MonotonicTime.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/RefPtr.h>
 
@@ -105,7 +106,10 @@ private:
     Lock m_lock;
     bool m_scheduled WTF_GUARDED_BY_LOCK(m_lock) { false };
     bool m_previousFrameDone WTF_GUARDED_BY_LOCK(m_lock) { true };
-    
+
+    MonotonicTime m_frameStartTime WTF_GUARDED_BY_LOCK(m_lock);
+    unsigned m_consecutiveDropCount WTF_GUARDED_BY_LOCK(m_lock) { 0 };
+
     unsigned m_unscheduledFireCount WTF_GUARDED_BY_LOCK(m_lock) { 0 };
     unsigned m_maxUnscheduledFireCount WTF_GUARDED_BY_LOCK(m_lock) { 0 };
 };

@@ -162,6 +162,11 @@ enum TracePointCode {
     SyntheticMomentumEvent,
     RemoteLayerTreeScheduleRenderingUpdate,
     DisplayLinkUpdate,
+    DisplayRefreshMonitorFrameDropped,
+    DisplayRefreshMonitorUnscheduled,
+    DisplayRefreshClientNotScheduled,
+    DisplayRefreshClientThrottled,
+    DisplayRefreshNoMonitor,
 
     UIProcessRange = 14000,
     CommitLayerTreeStart,

@@ -28,6 +28,7 @@
 
 #include "DisplayRefreshMonitor.h"
 #include "DisplayRefreshMonitorManager.h"
+#include <wtf/SystemTracing.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -52,11 +53,15 @@ void DisplayRefreshMonitorClient::setPreferredFramesPerSecond(FramesPerSecond pr
 
 void DisplayRefreshMonitorClient::fireDisplayRefreshIfNeeded(const DisplayUpdate& displayUpdate)
 {
-    if (!m_scheduled)
+    if (!m_scheduled) {
+        WTFEmitSignpost(this, DisplayRefreshClientNotScheduled, "");
         return;
+    }
 
-    if (!displayUpdate.relevantForUpdateFrequency(m_preferredFramesPerSecond))
+    if (!displayUpdate.relevantForUpdateFrequency(m_preferredFramesPerSecond)) {
+        WTFEmitSignpost(this, DisplayRefreshClientThrottled, "preferredFPS=%u updateIndex=%u", m_preferredFramesPerSecond, displayUpdate.updateIndex);
         return;
+    }
 
     m_scheduled = false;
     displayRefreshFired();

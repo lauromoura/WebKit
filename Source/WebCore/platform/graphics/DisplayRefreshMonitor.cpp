@@ -30,6 +30,7 @@
 #include "DisplayRefreshMonitorFactory.h"
 #include "DisplayRefreshMonitorManager.h"
 #include "Logging.h"
+#include <wtf/SystemTracing.h>
 #include <wtf/text/TextStream.h>
 
 #if PLATFORM(IOS_FAMILY)
@@ -163,17 +164,24 @@ void DisplayRefreshMonitor::displayLinkFired(const DisplayUpdate& displayUpdate)
 
         // This may be off the main thread.
         if (!isPreviousFrameDone()) {
-            RELEASE_LOG(DisplayLink, "[Web] DisplayRefreshMonitor::displayLinkFired for display %u - previous frame is not complete", displayID());
+            ++m_consecutiveDropCount;
+            auto elapsed = m_frameStartTime ? (MonotonicTime::now() - m_frameStartTime).milliseconds() : 0.0;
+            RELEASE_LOG(DisplayLink, "[Web] DisplayRefreshMonitor::displayLinkFired for display %u - previous frame is not complete (elapsed=%.2fms, consecutiveDrops=%u)", displayID(), elapsed, m_consecutiveDropCount);
+            WTFEmitSignpost(this, DisplayRefreshMonitorFrameDropped, "display=%u elapsed=%.2fms consecutiveDrops=%u", displayID(), elapsed, m_consecutiveDropCount);
             return;
         }
 
         LOG_WITH_STREAM(DisplayLink, stream << "[Web] DisplayRefreshMonitor::displayLinkFired for display " << displayID() << " - scheduled " << isScheduled() << " unscheduledFireCount " << m_unscheduledFireCount << " of " << m_maxUnscheduledFireCount);
         if (firedAndReachedMaxUnscheduledFireCount()) {
+            RELEASE_LOG(DisplayLink, "[Web] DisplayRefreshMonitor::displayLinkFired for display %u - unscheduled fire limit reached, stopping", displayID());
+            WTFEmitSignpost(this, DisplayRefreshMonitorUnscheduled, "display=%u unscheduledCount=%u", displayID(), m_unscheduledFireCount);
             stopNotificationMechanism();
             return;
         }
 
         setIsScheduled(false);
+        m_frameStartTime = MonotonicTime::now();
+        m_consecutiveDropCount = 0;
         setIsPreviousFrameDone(false);
     }
     dispatchDisplayDidRefresh(displayUpdate);

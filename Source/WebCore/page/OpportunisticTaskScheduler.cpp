@@ -103,21 +103,40 @@ void OpportunisticTaskScheduler::runLoopObserverFired()
 
     m_runloopCountAfterBeingScheduled++;
 
+    static constexpr auto numRetriesWhileScheduledWorkIsImminent = 9;
+    static constexpr auto maxRetriesWhenScheduledWorkIsNotImminent = 4;
+    static constexpr auto desiredFractionOfRenderingInterval = 0.95;
+
+    bool imminentWork = hasImminentlyScheduledWork();
+    auto renderingInterval = page->preferredRenderingUpdateInterval();
+    bool hasHeadroom = remainingTime > desiredFractionOfRenderingInterval * renderingInterval;
+
     bool shouldRunTask = [&] {
-        static constexpr auto numRetriesWhileScheduledWorkIsImminent = 9;
-        if (hasImminentlyScheduledWork())
+        if (imminentWork)
             return m_runloopCountAfterBeingScheduled > numRetriesWhileScheduledWorkIsImminent;
 
-        static constexpr auto maxRetriesWhenScheduledWorkIsNotImminent = 4;
         if (m_runloopCountAfterBeingScheduled > maxRetriesWhenScheduledWorkIsNotImminent)
             return true;
 
-        static constexpr auto desiredFractionOfRenderingInterval = 0.95;
-        if (remainingTime > desiredFractionOfRenderingInterval * page->preferredRenderingUpdateInterval())
+        if (hasHeadroom)
             return true;
 
         return false;
     }();
+
+    // Emit sysprof marker with OTS RLO decision data
+    WTFEmitSignpost(this, OTSRunLoopObserver, "shouldRun=%d remaining=%.2fms interval=%.2fms headroom=%d imminent=%d count=%lu",
+        shouldRunTask,
+        remainingTime.milliseconds(),
+        renderingInterval.milliseconds(),
+        hasHeadroom,
+        imminentWork,
+        m_runloopCountAfterBeingScheduled);
+
+    // Update counters for time-series analysis
+    WTFSetCounter(OTSRemainingTimeUs, static_cast<int64_t>(remainingTime.microseconds()));
+    WTFSetCounter(OTSHasImminentWork, imminentWork ? 1 : 0);
+    WTFSetCounter(OTSHasHeadroom, hasHeadroom ? 1 : 0);
 
     if (!shouldRunTask) {
         dataLogLnIf(verbose, "[OPPORTUNISTIC TASK] GaveUp: task gets rescheduled ", remainingTime, " ", hasImminentlyScheduledWork(), " ", page->preferredRenderingUpdateInterval(), " ", m_runloopCountAfterBeingScheduled, " signpost:(", JSC::activeJSGlobalObjectSignpostIntervalCount.load(), ")");
@@ -181,6 +200,7 @@ OpportunisticTaskScheduler::FullGCActivityCallback::FullGCActivityCallback(JSC::
     : Base(heap, JSC::Synchronousness::Sync)
     , m_vm(heap.vm())
     , m_runLoopObserver(makeUniqueRef<RunLoopObserver>(RunLoopObserver::WellKnownOrder::PostRenderingUpdate, [this] {
+        WTFEmitSignpost(this, TimerForcedFullGC, "PostRenderingUpdate RLO fired");
         JSC::JSLockHolder locker(m_vm);
         m_version = 0;
         m_deferCount = 0;
@@ -202,6 +222,7 @@ void OpportunisticTaskScheduler::FullGCActivityCallback::doCollection(JSC::VM& v
             m_deferCount = 0;
             m_delay = delay;
             setTimeUntilFire(delay);
+            WTFEmitSignpost(this, FullGCTimerDefer, "version changed, reset defer count");
             return;
         }
 
@@ -209,14 +230,17 @@ void OpportunisticTaskScheduler::FullGCActivityCallback::doCollection(JSC::VM& v
         if (++m_deferCount < deferCountThreshold || vm.deferredWorkTimer->hasImminentlyScheduledWork()) {
             m_delay = delay;
             setTimeUntilFire(delay);
+            WTFEmitSignpost(this, FullGCTimerDefer, "defer %u/%u", m_deferCount, deferCountThreshold);
             return;
         }
 
+        WTFEmitSignpost(this, FullGCTimerScheduleRLO, "threshold reached, scheduling PostRenderingUpdate");
         m_runLoopObserver->invalidate();
         m_runLoopObserver->schedule();
         return;
     }
 
+    WTFEmitSignpost(this, FullGCTimerImmediate, "not busy, running immediately");
     JSC::JSLockHolder locker(m_vm);
     m_version = 0;
     m_deferCount = 0;
@@ -227,6 +251,7 @@ OpportunisticTaskScheduler::EdenGCActivityCallback::EdenGCActivityCallback(JSC::
     : Base(heap, JSC::Synchronousness::Sync)
     , m_vm(heap.vm())
     , m_runLoopObserver(makeUniqueRef<RunLoopObserver>(RunLoopObserver::WellKnownOrder::PostRenderingUpdate, [this] {
+        WTFEmitSignpost(this, TimerForcedEdenGC, "PostRenderingUpdate RLO fired");
         JSC::JSLockHolder locker(m_vm);
         m_version = 0;
         m_deferCount = 0;
@@ -246,6 +271,7 @@ void OpportunisticTaskScheduler::EdenGCActivityCallback::doCollection(JSC::VM& v
             m_deferCount = 0;
             m_delay = delay;
             setTimeUntilFire(delay);
+            WTFEmitSignpost(this, EdenGCTimerDefer, "version changed, reset defer count");
             return;
         }
 
@@ -253,14 +279,17 @@ void OpportunisticTaskScheduler::EdenGCActivityCallback::doCollection(JSC::VM& v
         if (++m_deferCount < deferCountThreshold || vm.deferredWorkTimer->hasImminentlyScheduledWork()) {
             m_delay = delay;
             setTimeUntilFire(delay);
+            WTFEmitSignpost(this, EdenGCTimerDefer, "defer %u/%u", m_deferCount, deferCountThreshold);
             return;
         }
 
+        WTFEmitSignpost(this, EdenGCTimerScheduleRLO, "threshold reached, scheduling PostRenderingUpdate");
         m_runLoopObserver->invalidate();
         m_runLoopObserver->schedule();
         return;
     }
 
+    WTFEmitSignpost(this, EdenGCTimerImmediate, "not busy, running immediately");
     JSC::JSLockHolder locker(m_vm);
     m_version = 0;
     m_deferCount = 0;
