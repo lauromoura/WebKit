@@ -258,6 +258,68 @@ if (NOT HAS_RUN_WEBKIT_COMMON)
         find_package(Gperf 3.0.1 REQUIRED)
     endif ()
 
+    # -------------------------------------------------------------------------
+    # PGO (Profile-Guided Optimization) support
+    # -------------------------------------------------------------------------
+    # Phase 1: Profile Generation - build instrumented binary that writes .profraw files
+    if (ENABLE_LLVM_PROFILE_GENERATION AND COMPILER_IS_CLANG AND NOT MSVC)
+        include(CheckCXXSourceCompiles)
+        set(CMAKE_REQUIRED_FLAGS "-fprofile-generate")
+        set(CMAKE_REQUIRED_LINK_OPTIONS "-fprofile-generate")
+        check_cxx_source_compiles("int main() { return 0; }" HAVE_CLANG_PROFILE_RUNTIME)
+        unset(CMAKE_REQUIRED_FLAGS)
+        unset(CMAKE_REQUIRED_LINK_OPTIONS)
+
+        if (NOT HAVE_CLANG_PROFILE_RUNTIME)
+            message(FATAL_ERROR
+                "ENABLE_LLVM_PROFILE_GENERATION requires the Clang profile runtime (libclang_rt.profile).\n"
+                "Install it or disable PGO with: -DENABLE_LLVM_PROFILE_GENERATION=OFF")
+        endif ()
+
+        set(PGO_PROFILE_DIR "" CACHE PATH "Runtime directory for PGO profile output. Leave empty for clang default.")
+
+        if (PGO_PROFILE_DIR)
+            set(_PGO_GENERATE_FLAG "-fprofile-generate=${PGO_PROFILE_DIR}")
+        else ()
+            set(_PGO_GENERATE_FLAG "-fprofile-generate")
+        endif ()
+
+        set(WEBKIT_PGO_COMPILE_OPTIONS "${_PGO_GENERATE_FLAG}" CACHE INTERNAL "")
+
+        # __llvm_profile_filename is a weak symbol in each instrumented TU
+        # (with the same definition), but the linker complains about it in LTO builds.
+        set(PGO_LINK_FLAGS "${_PGO_GENERATE_FLAG} -Wl,--allow-multiple-definition")
+        set(CMAKE_EXE_LINKER_FLAGS "${PGO_LINK_FLAGS} ${CMAKE_EXE_LINKER_FLAGS}")
+        set(CMAKE_SHARED_LINKER_FLAGS "${PGO_LINK_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS}")
+        set(CMAKE_MODULE_LINKER_FLAGS "${PGO_LINK_FLAGS} ${CMAKE_MODULE_LINKER_FLAGS}")
+
+        if (PGO_PROFILE_DIR)
+            message(STATUS "PGO profile generation enabled. Profile output: ${PGO_PROFILE_DIR}")
+        else ()
+            message(STATUS "PGO profile generation enabled. Using clang default profile output.")
+        endif ()
+        message(STATUS "  Override at runtime with: LLVM_PROFILE_FILE=/your/path/%p_%m.profraw")
+    endif ()
+
+    # Phase 2: Profile Use - build optimized binary using collected profile data
+    if (USE_PGO_PROFILE AND COMPILER_IS_CLANG AND NOT MSVC)
+        set(PGO_PROFILE_PATH "" CACHE FILEPATH "Path to merged .profdata file for PGO")
+        if (NOT PGO_PROFILE_PATH)
+            message(FATAL_ERROR "USE_PGO_PROFILE is ON but PGO_PROFILE_PATH is not set")
+        endif ()
+        if (NOT EXISTS "${PGO_PROFILE_PATH}")
+            message(FATAL_ERROR "PGO_PROFILE_PATH does not exist: ${PGO_PROFILE_PATH}")
+        endif ()
+
+        set(CMAKE_C_FLAGS "-fprofile-use=${PGO_PROFILE_PATH} ${CMAKE_C_FLAGS}")
+        set(CMAKE_CXX_FLAGS "-fprofile-use=${PGO_PROFILE_PATH} -Wno-error=backend-plugin ${CMAKE_CXX_FLAGS}")
+        set(CMAKE_EXE_LINKER_FLAGS "-fprofile-use=${PGO_PROFILE_PATH} ${CMAKE_EXE_LINKER_FLAGS}")
+        set(CMAKE_SHARED_LINKER_FLAGS "-fprofile-use=${PGO_PROFILE_PATH} ${CMAKE_SHARED_LINKER_FLAGS}")
+        set(CMAKE_MODULE_LINKER_FLAGS "-fprofile-use=${PGO_PROFILE_PATH} ${CMAKE_MODULE_LINKER_FLAGS}")
+
+        message(STATUS "PGO profile use enabled with: ${PGO_PROFILE_PATH}")
+    endif ()
+
     # -----------------------------------------------------------------------------
     # Generate a usable compile_commands.json when using unified builds
     # -----------------------------------------------------------------------------
