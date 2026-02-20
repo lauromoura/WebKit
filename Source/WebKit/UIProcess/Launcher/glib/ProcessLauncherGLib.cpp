@@ -289,7 +289,20 @@ void ProcessLauncher::terminateProcess()
     else
         kill(m_processID, SIGKILL);
 #else
+
+#if ENABLE(LLVM_PROFILE_GENERATION)
+    kill(m_processID, SIGTERM);
+    auto* pid = new ProcessID(m_processID);
+    g_timeout_add(500, [](gpointer data) -> gboolean {
+        auto* pid = static_cast<ProcessID*>(data);
+        kill(*pid, SIGKILL);
+        delete pid;
+        return G_SOURCE_REMOVE;
+    }, pid);
+#else
     kill(m_processID, SIGKILL);
+#endif
+
 #endif
 
     m_processID = 0;

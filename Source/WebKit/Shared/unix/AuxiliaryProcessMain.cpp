@@ -38,6 +38,10 @@
 #include "unix/BreakpadExceptionHandler.h"
 #endif
 
+#if ENABLE(LLVM_PROFILE_GENERATION)
+__attribute__((weak)) extern "C" int __llvm_profile_dump(void);
+#endif
+
 namespace WebKit {
 
 AuxiliaryProcessMainCommon::AuxiliaryProcessMainCommon()
@@ -92,6 +96,15 @@ void AuxiliaryProcess::platformInitialize(const AuxiliaryProcessInitializationPa
     RELEASE_ASSERT(!sigemptyset(&signalAction.sa_mask));
     signalAction.sa_handler = SIG_IGN;
     RELEASE_ASSERT(!sigaction(SIGPIPE, &signalAction, nullptr));
+#if ENABLE(LLVM_PROFILE_GENERATION)
+    if (__llvm_profile_dump) {
+        signalAction.sa_handler = [](int) {
+            __llvm_profile_dump();
+            _exit(0);
+        };
+        RELEASE_ASSERT(!sigaction(SIGTERM, &signalAction, nullptr));
+    }
+#endif
 }
 IGNORE_CLANG_WARNINGS_END
 
