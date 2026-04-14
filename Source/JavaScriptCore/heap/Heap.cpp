@@ -1742,6 +1742,28 @@ NEVER_INLINE bool Heap::runEndPhase(GCConductor conn)
     m_codeBlocks->clearCurrentlyExecutingAndRemoveDeadCodeBlocks(vm());
 
     m_objectSpace.prepareForAllocation();
+
+    // Emit retrospective estimate vs actual duration before updateAllocationLimits resets counters.
+    // At this point: m_lastEdenGCLength/m_lastFullGCLength = previous GC's duration (the estimate input),
+    // totalBytesAllocatedThisCycle() = this cycle's allocation (not yet reset).
+    {
+        auto actualDuration = MonotonicTime::now() - m_beforeGC;
+        CollectionScope scope = *m_collectionScope;
+        if (scope == CollectionScope::Eden && m_bytesAllocatedBeforeLastEdenCollect) {
+            auto estimated = (m_lastEdenGCLength * totalBytesAllocatedThisCycle()) / m_bytesAllocatedBeforeLastEdenCollect;
+            WTFEmitSignpost(this, GCEstimateRetrospective, "Eden estimated=%.2fms actual=%.2fms allocThisCycle=%zu allocBeforeLast=%zu lastEdenLen=%.2fms hid=%p",
+                estimated.milliseconds(), actualDuration.milliseconds(),
+                totalBytesAllocatedThisCycle(), m_bytesAllocatedBeforeLastEdenCollect,
+                m_lastEdenGCLength.milliseconds(), this);
+        } else if (scope == CollectionScope::Full && m_totalBytesVisitedAfterLastFullCollect) {
+            auto estimated = (m_lastFullGCLength * m_totalBytesVisited) / m_totalBytesVisitedAfterLastFullCollect;
+            WTFEmitSignpost(this, GCEstimateRetrospective, "Full estimated=%.2fms actual=%.2fms bytesVisited=%zu bytesVisitedAfterLast=%zu lastFullLen=%.2fms hid=%p",
+                estimated.milliseconds(), actualDuration.milliseconds(),
+                m_totalBytesVisited, m_totalBytesVisitedAfterLastFullCollect,
+                m_lastFullGCLength.milliseconds(), this);
+        }
+    }
+
     updateAllocationLimits();
 
     if (m_verifier) [[unlikely]] {
@@ -2550,8 +2572,14 @@ void Heap::updateAllocationLimits()
     m_nonOversizedBytesAllocatedThisCycle = 0;
     m_oversizedBytesAllocatedThisCycle = 0;
     m_lastOversidedAllocationThisCycle = 0;
+    m_didEmitAllocationTrigger = false;
 
     dataLogIf(Options::logGC(), "=> ", currentHeapSize / 1024, "kb, ");
+
+    const char* scopeName = (m_collectionScope && *m_collectionScope == CollectionScope::Full) ? "Full" : "Eden";
+    WTFEmitSignpost(this, GCLimitsUpdated, "%s heap=%zukb maxHeap=%zukb maxEden=%zukb sizeAfterCollect=%zukb abandoned=%zukb hid=%p",
+        scopeName, currentHeapSize / 1024, m_maxHeapSize / 1024, m_maxEdenSize / 1024,
+        m_sizeAfterLastCollect / 1024, m_bytesAbandonedSinceLastFullCollect / 1024, this);
 }
 
 void Heap::didFinishCollection()
@@ -2566,9 +2594,15 @@ void Heap::didFinishCollection()
 
     // Emit actual GC duration for comparison with estimates
     const char* gcType = scope == CollectionScope::Full ? "Full" : "Eden";
-    const char* gcSource = m_isInOpportunisticTask ? "opportunistic" : "timer";
-    WTFEmitSignpost(this, GCActualDuration, "%s %s duration=%.2fms heap=%zukb",
-        gcType, gcSource, gcDuration.milliseconds(), size() / 1024);
+    const char* gcSource;
+    if (m_isInOpportunisticTask)
+        gcSource = "opportunistic";
+    else if (m_currentRequest.triggerSource == GCTriggerSource::Allocation)
+        gcSource = "allocation";
+    else
+        gcSource = "timer";
+    WTFEmitSignpost(this, GCActualDuration, "%s %s duration=%.2fms heap=%zukb hid=%p",
+        gcType, gcSource, gcDuration.milliseconds(), size() / 1024, this);
     WTFSetCounter(GCActualDurationUs, static_cast<int64_t>(gcDuration.microseconds()));
     WTFSetCounter(GCIsOpportunistic, m_isInOpportunisticTask ? 1 : 0);
 
@@ -2637,6 +2671,11 @@ void Heap::didAllocate(size_t bytes)
         m_lastOversidedAllocationThisCycle = bytes;
     } else
         m_nonOversizedBytesAllocatedThisCycle += bytes;
+
+    auto total = totalBytesAllocatedThisCycle();
+    if ((total >> 16) != ((total - bytes) >> 16)) // crossed a 64KB boundary
+        WTFEmitSignpost(this, GCDidAllocateBytes, "total=%zu bytes=%zu oversized=%d hid=%p", total, bytes, bytes >= oversizedAllocationThreshold, this);
+
     performIncrement(bytes);
 }
 
@@ -2917,7 +2956,15 @@ void Heap::collectIfNecessaryOrDefer(GCDeferralContext* deferralContext)
     else if (isDeferred())
         m_didDeferGCWork = true;
     else {
-        collectAsync();
+        if (!m_didEmitAllocationTrigger) {
+            m_didEmitAllocationTrigger = true;
+            WTFEmitSignpost(this, GCAllocationTrigger, "allocThisCycle=%zu maxHeap=%zu sizeAfterCollect=%zu oversized=%zu lastOversized=%zu hid=%p",
+                totalBytesAllocatedThisCycle(), m_maxHeapSize, m_sizeAfterLastCollect,
+                m_oversizedBytesAllocatedThisCycle, m_lastOversidedAllocationThisCycle, this);
+        }
+        GCRequest request;
+        request.triggerSource = GCTriggerSource::Allocation;
+        collectAsync(request);
         stopIfNecessary(); // This will immediately start the collection if we have the conn.
     }
 }

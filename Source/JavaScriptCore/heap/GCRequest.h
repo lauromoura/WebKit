@@ -32,6 +32,11 @@
 
 namespace JSC {
 
+enum class GCTriggerSource : uint8_t {
+    Timer,
+    Allocation,
+};
+
 struct GCRequest {
     GCRequest() { }
     
@@ -51,6 +56,7 @@ struct GCRequest {
     
     std::optional<CollectionScope> scope;
     RefPtr<SharedTask<void()>> didFinishEndPhase;
+    GCTriggerSource triggerSource { GCTriggerSource::Timer };
 };
 
 } // namespace JSC

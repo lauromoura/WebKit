@@ -975,6 +975,7 @@ private:
     bool m_threadShouldStop { false };
     bool m_mutatorDidRun { true };
     bool m_didDeferGCWork { false };
+    bool m_didEmitAllocationTrigger { false };
     bool m_shouldStopCollectingContinuously { false };
     bool m_isCompilerThreadsSuspended { false };
 
