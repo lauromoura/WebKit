@@ -2606,6 +2606,20 @@ void Heap::didFinishCollection()
     WTFSetCounter(GCActualDurationUs, static_cast<int64_t>(gcDuration.microseconds()));
     WTFSetCounter(GCIsOpportunistic, m_isInOpportunisticTask ? 1 : 0);
 
+    // Collection stats: barriers, bytes visited, death rate, pause time
+    {
+        auto pauseDuration = m_afterGC - m_stopTime;
+        size_t sizeBefore = (scope == CollectionScope::Full)
+            ? m_sizeBeforeLastFullCollect : m_sizeBeforeLastEdenCollect;
+        size_t sizeAfter = size();
+        double deathRate = sizeBefore > 0 ? static_cast<double>(sizeBefore - std::min(sizeAfter, sizeBefore)) / sizeBefore : 0;
+        WTFEmitSignpost(this, GCCollectionStats,
+            "%s barriers=%zu bytesVisited=%zukb deathRate=%.2f pauseMs=%.2f heapBefore=%zukb heapAfter=%zukb hid=%p",
+            gcType, m_barriersExecuted, m_totalBytesVisitedThisCycle / 1024,
+            deathRate, pauseDuration.milliseconds(),
+            sizeBefore / 1024, sizeAfter / 1024, this);
+    }
+
 #if ENABLE(RESOURCE_USAGE)
     ASSERT(externalMemorySize() <= extraMemorySize());
 #endif
